@@ -1,101 +1,127 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ProfileInput } from "@/components/profile-input";
+import { AnalysisSkeleton } from "@/components/analysis-skeleton";
+import { ScorePanel } from "@/components/score-panel";
+import { KeywordHighlights } from "@/components/keyword-highlights";
+import { HeadlineBeforeAfter } from "@/components/headline-before-after";
+import { EmailGate } from "@/components/email-gate";
+import { track } from "@/lib/analytics";
+import type { AnalysisResult } from "@/lib/types";
+
+type Step = "input" | "loading" | "result";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [step, setStep] = useState<Step>("input");
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [profileText, setProfileText] = useState("");
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [revealed, setRevealed] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+
+  async function handleAnalyze(formData: FormData) {
+    setStep("loading");
+    setAnalyzeError(null);
+
+    try {
+      const res = await fetch("/api/analyze", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Não foi possível analisar o perfil.");
+      }
+
+      setAnalysis(data.analysis as AnalysisResult);
+      setProfileText(data.profileText as string);
+      setRevealed(false);
+      setLeadError(null);
+      setStep("result");
+      track("score_viewed", { score: data.analysis.score });
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : "Erro inesperado.");
+      setStep("input");
+    }
+  }
+
+  async function handleEmailSubmit(email: string) {
+    if (!analysis) return;
+    setIsSubmittingLead(true);
+    setLeadError(null);
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, rawProfile: profileText, score: analysis.score }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Não foi possível salvar seu e-mail.");
+      }
+
+      setRevealed(true);
+      track("headline_generated", { score: analysis.score });
+    } catch (err) {
+      setLeadError(err instanceof Error ? err.message : "Erro inesperado.");
+    } finally {
+      setIsSubmittingLead(false);
+    }
+  }
+
+  function handleReset() {
+    setStep("input");
+    setAnalysis(null);
+    setProfileText("");
+    setRevealed(false);
+    setAnalyzeError(null);
+    setLeadError(null);
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-8 px-4 py-12 sm:py-16">
+      <header className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-primary">GlobeJobbers</span>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Seu perfil está pronto para uma vaga remota em dólar?
+        </h1>
+        <p className="text-balance text-sm text-muted-foreground sm:text-base">
+          Cole o texto do seu perfil de LinkedIn ou envie um PDF. Em menos de 1 minuto você recebe
+          seu Score Internacional e vê como sua headline ficaria para recrutadores internacionais.
+        </p>
+      </header>
+
+      {step === "input" && (
+        <ProfileInput onSubmit={handleAnalyze} isLoading={false} error={analyzeError} />
+      )}
+
+      {step === "loading" && <AnalysisSkeleton />}
+
+      {step === "result" && analysis && (
+        <div className="flex flex-col gap-6">
+          <ScorePanel score={analysis.score} subscores={analysis.subscores} />
+
+          <div className="flex flex-col gap-4">
+            <h2 className="text-lg font-semibold text-foreground">Sua headline reescrita</h2>
+            <KeywordHighlights items={analysis.keywordHighlights} />
+            <HeadlineBeforeAfter
+              original={analysis.headline.original}
+              rewritten={analysis.headline.rewritten}
+              revealed={revealed}
+            >
+              <EmailGate onSubmit={handleEmailSubmit} isSubmitting={isSubmittingLead} error={leadError} />
+            </HeadlineBeforeAfter>
+          </div>
+
+          <Button variant="ghost" className="self-start text-muted-foreground" onClick={handleReset}>
+            Analisar outro perfil
+          </Button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      )}
+    </main>
   );
 }
