@@ -23,13 +23,17 @@ export interface AnalysisResult {
   keywordHighlights: string[];
 }
 
+// Rótulos alinhados ao handoff de design. "recruiterReadiness" não tem
+// equivalente exato no design (que chama essa posição de "Experiência
+// remota", critério que o backend não calcula) — mantemos o rótulo real do
+// que é avaliado em vez de nomear algo que não medimos.
 /** Metadados para renderizar os subscores na UI, na ordem desejada. */
 export const SUBSCORE_META: { key: keyof Subscores; label: string }[] = [
-  { key: "headline", label: "Headline" },
-  { key: "impactClarity", label: "Clareza de impacto" },
-  { key: "keywords", label: "Keywords" },
+  { key: "headline", label: "Clareza da headline" },
+  { key: "english", label: "Inglês profissional" },
   { key: "recruiterReadiness", label: "Prontidão para recrutador internacional" },
-  { key: "english", label: "Inglês" },
+  { key: "keywords", label: "Palavras-chave p/ recrutadores" },
+  { key: "impactClarity", label: "Prova de impacto" },
 ];
 
 export interface LeadPayload {

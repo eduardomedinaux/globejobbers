@@ -10,17 +10,17 @@
 
 @layer base {
   :root {
-    /* Base quase-monocromática (off-white / quase-preto). */
-    --background: 40 14% 98%;
+    /* Base quase-monocromática (off-white / quase-preto). #FAFAF8 */
+    --background: 48 14% 98%;
     --foreground: 222 25% 10%;
     --card: 0 0% 100%;
     --card-foreground: 222 25% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 25% 10%;
 
-    /* Cor de marca: azul-petróleo profundo. Usar só em CTAs, deltas e score. */
-    --primary: 199 70% 24%;
-    --primary-foreground: 0 0% 98%;
+    /* Cor de marca: teal profundo (#0F4D4A). Usar só em CTAs, deltas e score. */
+    --primary: 177 67% 18%;
+    --primary-foreground: 150 33% 98%;
 
     --secondary: 220 16% 95%;
     --secondary-foreground: 222 25% 10%;
@@ -32,13 +32,13 @@
     --destructive-foreground: 0 0% 98%;
     --border: 220 14% 90%;
     --input: 220 14% 90%;
-    --ring: 199 70% 24%;
+    --ring: 177 67% 18%;
 
-    --chart-1: 199 70% 24%;
+    --chart-1: 177 67% 18%;
     --chart-2: 220 9% 46%;
-    --chart-3: 199 40% 50%;
+    --chart-3: 177 40% 45%;
     --chart-4: 220 14% 70%;
-    --chart-5: 199 70% 70%;
+    --chart-5: 177 67% 60%;
 
     --radius: 0.625rem;
   }
@@ -50,7 +50,7 @@
     --card-foreground: 0 0% 98%;
     --popover: 222 22% 11%;
     --popover-foreground: 0 0% 98%;
-    --primary: 199 60% 55%;
+    --primary: 177 50% 55%;
     --primary-foreground: 222 25% 10%;
     --secondary: 222 18% 16%;
     --secondary-foreground: 0 0% 98%;
@@ -62,7 +62,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 222 18% 18%;
     --input: 222 18% 18%;
-    --ring: 199 60% 55%;
+    --ring: 177 50% 55%;
   }
 }
 

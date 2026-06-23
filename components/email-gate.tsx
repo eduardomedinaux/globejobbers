@@ -22,13 +22,13 @@ export function EmailGate({ onSubmit, isSubmitting, error }: EmailGateProps) {
   }
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-4">
+    <div className="absolute inset-0 flex items-center justify-center p-3">
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-xs flex-col gap-3 rounded-lg border border-border bg-card/95 p-4 shadow-md backdrop-blur-sm"
+        className="flex w-full max-w-[260px] flex-col gap-2.5 rounded-xl border border-[#E2EAE8] bg-white/95 p-3.5 shadow-[0_1px_2px_rgba(20,20,20,0.03),0_12px_32px_rgba(20,20,20,0.06)] backdrop-blur-sm"
       >
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Lock className="size-4 text-primary" />
+        <div className="flex items-center gap-2 text-[13px] font-medium text-[#1B1B1E]">
+          <Lock className="size-3.5 text-[#0F4D4A]" />
           Veja sua headline reescrita
         </div>
         <div className="flex flex-col gap-1.5">
@@ -43,10 +43,16 @@ export function EmailGate({ onSubmit, isSubmitting, error }: EmailGateProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isSubmitting}
+            className="h-9 border-[#E2EAE8] bg-white text-sm"
           />
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
-        <Button type="submit" size="sm" disabled={isSubmitting}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isSubmitting}
+          className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
+        >
           {isSubmitting ? "Revelando…" : "Revelar headline"}
         </Button>
       </form>

@@ -1,17 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ProfileInput } from "@/components/profile-input";
+import { PdfUploadCard } from "@/components/pdf-upload-card";
 import { AnalysisSkeleton } from "@/components/analysis-skeleton";
-import { ScorePanel } from "@/components/score-panel";
+import { ScoreCard } from "@/components/score-card";
+import { HeadlineCard } from "@/components/headline-card";
+import { ResultsGrid } from "@/components/results-grid";
 import { KeywordHighlights } from "@/components/keyword-highlights";
-import { HeadlineBeforeAfter } from "@/components/headline-before-after";
 import { EmailGate } from "@/components/email-gate";
+import { Wordmark } from "@/components/wordmark";
 import { track } from "@/lib/analytics";
 import type { AnalysisResult } from "@/lib/types";
 
 type Step = "input" | "loading" | "result";
+
+// Valores estáticos da banda "Exemplo do que você recebe" (ver handoff de
+// design). Em produção o resultado real usa os mesmos componentes ScoreCard
+// / HeadlineCard, só troca a fonte dos dados.
+const EXAMPLE_SCORE = 82;
+const EXAMPLE_SUBSCORES = {
+  headline: 74,
+  english: 88,
+  recruiterReadiness: 65,
+  keywords: 80,
+  impactClarity: 79,
+};
+const EXAMPLE_HEADLINE = {
+  original: "Desenvolvedor Java na Acme",
+  rewritten: "Senior Backend Engineer · Java & Kotlin · Remote-first, USD-ready",
+};
 
 export default function Home() {
   const [step, setStep] = useState<Step>("input");
@@ -83,45 +100,90 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-8 px-4 py-12 sm:py-16">
-      <header className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-primary">GlobeJobbers</span>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Seu perfil está pronto para uma vaga remota em dólar?
-        </h1>
-        <p className="text-balance text-sm text-muted-foreground sm:text-base">
-          Cole o texto do seu perfil de LinkedIn ou envie um PDF. Em menos de 1 minuto você recebe
-          seu Score Internacional e vê como sua headline ficaria para recrutadores internacionais.
-        </p>
-      </header>
+    <main className="relative min-h-screen overflow-x-hidden bg-background">
+      <div
+        className="pointer-events-none absolute left-1/2 top-[-220px] h-[560px] w-[900px] -translate-x-1/2"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, rgba(15,77,74,0.06), rgba(15,77,74,0) 70%)",
+        }}
+        aria-hidden
+      />
 
-      {step === "input" && (
-        <ProfileInput onSubmit={handleAnalyze} isLoading={false} error={analyzeError} />
-      )}
-
-      {step === "loading" && <AnalysisSkeleton />}
-
-      {step === "result" && analysis && (
-        <div className="flex flex-col gap-6">
-          <ScorePanel score={analysis.score} subscores={analysis.subscores} />
-
-          <div className="flex flex-col gap-4">
-            <h2 className="text-lg font-semibold text-foreground">Sua headline reescrita</h2>
-            <KeywordHighlights items={analysis.keywordHighlights} />
-            <HeadlineBeforeAfter
-              original={analysis.headline.original}
-              rewritten={analysis.headline.rewritten}
-              revealed={revealed}
-            >
-              <EmailGate onSubmit={handleEmailSubmit} isSubmitting={isSubmittingLead} error={leadError} />
-            </HeadlineBeforeAfter>
-          </div>
-
-          <Button variant="ghost" className="self-start text-muted-foreground" onClick={handleReset}>
-            Analisar outro perfil
-          </Button>
+      <div className="relative flex flex-col">
+        <div className="px-10 pb-1.5 pt-[34px] text-center">
+          <Wordmark />
         </div>
-      )}
+
+        <div className="mx-auto max-w-[720px] px-4 pb-6 pt-8 text-center sm:px-10 sm:pb-6 sm:pt-12">
+          <h1 className="text-balance text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] text-[#161618] sm:text-[44px] md:text-[52px]">
+            Seu LinkedIn está pronto para ganhar em dólar?
+          </h1>
+          <p className="text-pretty mx-auto mt-[22px] max-w-[600px] text-base leading-[1.55] text-[#5C5C60] sm:text-[19px]">
+            Receba seu Score Internacional grátis — uma análise completa do seu perfil — e veja
+            sua headline reescrita para recrutadores de fora.
+          </p>
+        </div>
+
+        {step !== "result" && (
+          <PdfUploadCard
+            onSubmit={handleAnalyze}
+            isLoading={step === "loading"}
+            error={analyzeError}
+          />
+        )}
+
+        {step === "input" && (
+          <ResultsGrid
+            eyebrow="Exemplo do que você recebe"
+            scoreCard={<ScoreCard score={EXAMPLE_SCORE} subscores={EXAMPLE_SUBSCORES} />}
+            headlineCard={
+              <HeadlineCard
+                original={EXAMPLE_HEADLINE.original}
+                rewritten={EXAMPLE_HEADLINE.rewritten}
+                revealed
+                deltaLabel="+34 alcance"
+              />
+            }
+          />
+        )}
+
+        {step === "loading" && <AnalysisSkeleton />}
+
+        {step === "result" && analysis && (
+          <div className="flex flex-col gap-6">
+            <ResultsGrid
+              eyebrow="Seu resultado"
+              scoreCard={<ScoreCard score={analysis.score} subscores={analysis.subscores} />}
+              headlineCard={
+                <HeadlineCard
+                  original={analysis.headline.original}
+                  rewritten={analysis.headline.rewritten}
+                  revealed={revealed}
+                >
+                  <EmailGate
+                    onSubmit={handleEmailSubmit}
+                    isSubmitting={isSubmittingLead}
+                    error={leadError}
+                  />
+                </HeadlineCard>
+              }
+            />
+
+            <div className="mx-auto w-full max-w-[880px] px-4 sm:px-10">
+              <KeywordHighlights items={analysis.keywordHighlights} />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleReset}
+              className="mx-auto mb-12 text-sm text-[#8A8A85] underline-offset-2 transition-colors hover:text-[#3F3F43] hover:underline"
+            >
+              Analisar outro perfil
+            </button>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
