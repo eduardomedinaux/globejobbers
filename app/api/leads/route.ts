@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { email, rawProfile, score } = body;
+  const { email, rawProfile, score, source } = body;
 
   // (a) Validação de e-mail no servidor — normaliza antes de testar para não
   // depender do front rejeitar espaços ou maiúsculas.
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       email: normalizedEmail,
       raw_profile: rawProfile,
       score,
+      ...(source === "ato1" || source === "ato2" ? { source } : {}),
     });
     if (dbError) {
       // Prefixo único "LEAD_INSERT_FAILED" para filtrar nos logs da Vercel e

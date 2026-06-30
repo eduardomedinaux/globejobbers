@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Kaushan_Script } from "next/font/google";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -13,13 +12,6 @@ const geistMono = localFont({
   variable: "--font-geist-mono",
   weight: "100 900",
 });
-// Usada só na wordmark "GlobeJobbers" (ver components/wordmark.tsx).
-const kaushanScript = Kaushan_Script({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-kaushan-script",
-});
-
 export const metadata: Metadata = {
   title: "GlobeJobbers — Score Internacional do seu perfil",
   description:
@@ -34,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${kaushanScript.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         {children}
       </body>

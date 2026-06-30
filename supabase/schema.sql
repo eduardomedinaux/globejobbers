@@ -9,8 +9,11 @@ create table if not exists public.leads (
   email text not null,
   raw_profile text not null,
   score integer not null check (score >= 0 and score <= 100),
+  source text,
   created_at timestamptz not null default now()
 );
+
+-- Para tabelas já existentes: ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS source text;
 
 create index if not exists leads_email_idx on public.leads (email);
 create index if not exists leads_created_at_idx on public.leads (created_at desc);

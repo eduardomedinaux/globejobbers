@@ -1,6 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ANALYSIS_SYSTEM_PROMPT, ANALYSIS_TOOL, buildAnalysisUserPrompt } from "@/lib/prompts";
-import type { AnalysisResult, Subscores } from "@/lib/types";
+import {
+  ANALYSIS_SYSTEM_PROMPT,
+  ANALYSIS_TOOL,
+  buildAnalysisUserPrompt,
+  HEADLINE_VISION_SYSTEM_PROMPT,
+  HEADLINE_VISION_TOOL,
+} from "@/lib/prompts";
+import type { AnalysisResult, HeadlineAnalysisResult, Subscores } from "@/lib/types";
 
 // Cliente único do servidor. NUNCA importar este módulo de um Client
 // Component — a key só existe em runtime de servidor (Route Handlers).
@@ -97,4 +103,74 @@ export async function generateAnalysis(profileText: string): Promise<AnalysisRes
   }
 
   return validateAnalysisResult(toolUse.input);
+}
+
+// Media types suportados pela API de visão da Anthropic.
+type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+function validateHeadlineAnalysisResult(raw: unknown): HeadlineAnalysisResult {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+  const rawHeadline = (obj.headline as Record<string, unknown>) ?? {};
+  return {
+    headlineScore: clampScore(obj.headlineScore),
+    headline: {
+      original: typeof rawHeadline.original === "string" ? rawHeadline.original : "",
+      rewritten: (typeof rawHeadline.rewritten === "string" ? rawHeadline.rewritten : "").slice(
+        0,
+        MAX_HEADLINE_LENGTH,
+      ),
+    },
+  };
+}
+
+/**
+ * Analisa a headline de um perfil LinkedIn a partir de uma imagem (print de
+ * tela), usando a API de visão do claude-sonnet-4-6.
+ *
+ * FUTURE (margem, ver CLAUDE.md "Regras inegociáveis #3"):
+ * - Registrar cost_usd desta geração a partir de `response.usage`.
+ * - Prompt caching: HEADLINE_VISION_SYSTEM_PROMPT é fixo — marcar com
+ *   cache_control quando o volume justificar.
+ */
+export async function analyzeHeadlineFromImage(
+  imageBase64: string,
+  mediaType: ImageMediaType,
+): Promise<HeadlineAnalysisResult> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 800,
+    temperature: 0,
+    system: HEADLINE_VISION_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mediaType,
+              data: imageBase64,
+            },
+          },
+          {
+            type: "text",
+            text: 'Analise a headline do LinkedIn neste print e chame "submit_headline_analysis" com o resultado.',
+          },
+        ],
+      },
+    ],
+    tools: [HEADLINE_VISION_TOOL],
+    tool_choice: { type: "tool", name: HEADLINE_VISION_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateHeadlineAnalysisResult(toolUse.input);
 }

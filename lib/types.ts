@@ -36,8 +36,17 @@ export const SUBSCORE_META: { key: keyof Subscores; label: string }[] = [
   { key: "impactClarity", label: "Prova de impacto" },
 ];
 
+export interface HeadlineAnalysisResult {
+  headlineScore: number;
+  headline: {
+    original: string;
+    rewritten: string;
+  };
+}
+
 export interface LeadPayload {
   email: string;
   rawProfile: string;
   score: number;
+  source?: "ato1" | "ato2";
 }

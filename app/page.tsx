@@ -111,7 +111,7 @@ export default function Home() {
       />
 
       <div className="relative flex flex-col">
-        <div className="px-10 pb-1.5 pt-[34px] text-center">
+        <div className="flex justify-center px-10 pb-1.5 pt-[34px]">
           <Wordmark />
         </div>
 

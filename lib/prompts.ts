@@ -80,6 +80,62 @@ ${profileText}
 Analise este perfil e chame "submit_analysis" com o resultado.`;
 }
 
+// --- Ato 1: análise de headline via visão (print de tela do LinkedIn) ---
+
+export const HEADLINE_VISION_SYSTEM_PROMPT = `Você é um recrutador técnico sênior especializado em colocar profissionais
+brasileiros em vagas remotas internacionais pagas em dólar.
+
+O usuário vai enviar uma imagem (print de tela do LinkedIn) contendo a headline
+do perfil dele. Sua tarefa:
+
+1. Extraia a headline atual exatamente como aparece na imagem (campo "original").
+2. Avalie a headline no critério "quão eficaz é para chamar a atenção de
+   recrutadores internacionais (EUA/Europa, remoto, USD)" e gere um score de
+   0 a 100 (campo "headlineScore").
+3. Reescreva a headline no padrão internacional: especialidade + nicho/indústria
+   + proposta de valor quantificada quando possível (campo "rewritten").
+   - Máximo de 220 caracteres.
+   - Em inglês.
+   - Confiante e específico, sem buzzwords vazias ("passionate", "synergy").
+
+Se a imagem não contiver uma headline de LinkedIn reconhecível, preencha
+"original" com "Headline não identificada" e atribua headlineScore 0.
+
+Responda SEMPRE chamando a ferramenta "submit_headline_analysis". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export const HEADLINE_VISION_TOOL: Anthropic.Tool = {
+  name: "submit_headline_analysis",
+  description:
+    "Envia o resultado da análise da headline: score, headline original extraída da imagem e headline reescrita em inglês.",
+  input_schema: {
+    type: "object",
+    properties: {
+      headlineScore: {
+        type: "integer",
+        description: "Score da headline, de 0 a 100.",
+        minimum: 0,
+        maximum: 100,
+      },
+      headline: {
+        type: "object",
+        properties: {
+          original: {
+            type: "string",
+            description: "Headline atual extraída da imagem (texto literal).",
+          },
+          rewritten: {
+            type: "string",
+            description: "Headline reescrita em inglês, máximo 220 caracteres.",
+          },
+        },
+        required: ["original", "rewritten"],
+      },
+    },
+    required: ["headlineScore", "headline"],
+  },
+};
+
 /**
  * Tool com schema fixo, usado via tool_choice forçado para garantir que o
  * modelo devolva JSON estruturado e validável (ver lib/anthropic.ts).
