@@ -1,7 +1,7 @@
+import { Analytics } from '@vercel/analytics/react';
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   description:
     "Cole seu perfil de LinkedIn e descubra, em minutos, o quão pronto ele está para recrutadores internacionais que pagam em dólar.",
 };
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,6 +28,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         {children}
+        <Analytics />
       </body>
     </html>
   );
