@@ -100,6 +100,7 @@ export default function HeadlinePage() {
     setStep("loading");
     setMsgIdx(0);
     setAnalyzeError(null);
+    track("analysis_clicked", { source: "ato1" });
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -115,6 +116,10 @@ export default function HeadlinePage() {
     } catch (err) {
       setAnalyzeError(err instanceof Error ? err.message : "Erro inesperado.");
       setStep("input");
+      track("analysis_failed", {
+        source: "ato1",
+        error: err instanceof Error ? err.message : "unknown",
+      });
     }
   }
 

@@ -43,6 +43,7 @@ export default function Home() {
   async function handleAnalyze(formData: FormData) {
     setStep("loading");
     setAnalyzeError(null);
+    track("analysis_clicked", { source: "ato2" });
 
     try {
       const res = await fetch("/api/analyze", { method: "POST", body: formData });
@@ -57,10 +58,14 @@ export default function Home() {
       setRevealed(false);
       setLeadError(null);
       setStep("result");
-      track("score_viewed", { score: data.analysis.score });
+      track("score_viewed", { source: "ato2", score: data.analysis.score });
     } catch (err) {
       setAnalyzeError(err instanceof Error ? err.message : "Erro inesperado.");
       setStep("input");
+      track("analysis_failed", {
+        source: "ato2",
+        error: err instanceof Error ? err.message : "unknown",
+      });
     }
   }
 
@@ -82,7 +87,7 @@ export default function Home() {
       }
 
       setRevealed(true);
-      track("headline_generated", { score: analysis.score });
+      track("headline_generated", { source: "ato2", score: analysis.score });
     } catch (err) {
       setLeadError(err instanceof Error ? err.message : "Erro inesperado.");
     } finally {

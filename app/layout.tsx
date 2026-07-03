@@ -2,6 +2,8 @@ import { Analytics } from '@vercel/analytics/react';
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { PostHogProvider } from "./providers";
+
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
@@ -12,11 +14,13 @@ const geistMono = localFont({
   variable: "--font-geist-mono",
   weight: "100 900",
 });
+
 export const metadata: Metadata = {
   title: "GlobeJobbers — Score Internacional do seu perfil",
   description:
     "Cole seu perfil de LinkedIn e descubra, em minutos, o quão pronto ele está para recrutadores internacionais que pagam em dólar.",
 };
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,7 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        {children}
+        <PostHogProvider>
+          {children}
+        </PostHogProvider>
         <Analytics />
       </body>
     </html>
