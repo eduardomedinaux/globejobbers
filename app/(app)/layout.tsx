@@ -2,12 +2,15 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { DashboardNav } from "@/components/dashboard/nav";
-import { DashboardTopBar } from "@/components/dashboard/top-bar";
+import { AppHeader } from "@/components/dashboard/app-header";
 
 /**
  * Guarda de autenticação de toda a área logada. Roda em Server Component
  * (fonte da verdade), não só no middleware — o middleware cuida apenas do
  * refresh do cookie de sessão (ver middleware.ts).
+ *
+ * Distribuição (padrão Didomi): AppHeader full-width no topo (logo + ajuda +
+ * "Minha conta"); sidebar abaixo do header; conteúdo à direita da sidebar.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -27,9 +30,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-background">
+      <AppHeader name={name} plan={plan} />
       <DashboardNav />
       <div className="flex flex-col pb-16 md:pb-0 md:pl-[240px]">
-        <DashboardTopBar name={name} plan={plan} />
         <main className="flex-1 px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>
     </div>

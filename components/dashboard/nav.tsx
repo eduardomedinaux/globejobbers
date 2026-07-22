@@ -2,19 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Sparkles, FileText, ScanSearch, History, User } from "lucide-react";
+import { LayoutDashboard, Sparkles, FileText, ScanSearch, History } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Wordmark } from "@/components/wordmark";
 
-// `mobileLabel` mais curto que `label` — 6 itens na bottom nav não cabem com
+// `mobileLabel` mais curto que `label` — os itens na bottom nav não cabem com
 // os labels completos da sidebar em telas estreitas (ex.: "LinkedIn Review").
+// "Account" saiu da navegação: agora vive no dropdown "Minha conta" do header
+// (components/dashboard/account-menu.tsx), acessível também no mobile.
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", mobileLabel: "Início", icon: LayoutDashboard },
   { href: "/tools/headline", label: "Headline", mobileLabel: "Headline", icon: Sparkles },
   { href: "/tools/cv-tailor", label: "CV Tailor", mobileLabel: "CV", icon: FileText },
   { href: "/tools/linkedin-review", label: "LinkedIn Review", mobileLabel: "LinkedIn", icon: ScanSearch },
   { href: "/history", label: "Histórico", mobileLabel: "Histórico", icon: History },
-  { href: "/account", label: "Account", mobileLabel: "Conta", icon: User },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -26,11 +26,8 @@ export function DashboardNav() {
 
   return (
     <>
-      {/* Desktop: sidebar fixa à esquerda */}
-      <aside className="fixed inset-y-0 left-0 hidden w-[240px] flex-col border-r border-[#EAEAE4] bg-white px-5 py-6 md:flex">
-        <div className="px-1 pb-8">
-          <Wordmark />
-        </div>
+      {/* Desktop: sidebar fixa à esquerda, ABAIXO do header (top-16 = h do AppHeader) */}
+      <aside className="fixed bottom-0 left-0 top-16 hidden w-[240px] flex-col border-r border-[#EAEAE4] bg-white px-5 py-6 md:flex">
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = isActive(pathname, href);
