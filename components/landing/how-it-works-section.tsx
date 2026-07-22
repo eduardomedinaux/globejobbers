@@ -8,18 +8,24 @@ const STEPS = [
 
 export function HowItWorksSection() {
   return (
-    <section id="como-funciona" className="mx-auto max-w-[720px] scroll-mt-10 px-6 py-14 sm:px-10 sm:py-20">
-      <h2 className="text-balance text-center text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-[#161618] sm:text-[36px]">
+    <section
+      id="como-funciona"
+      className="mx-auto max-w-[760px] scroll-mt-10 px-6 py-20 sm:px-10 sm:py-24"
+    >
+      <h2 className="text-balance text-center font-display text-[clamp(30px,4.4vw,48px)] font-extrabold leading-[1.05] tracking-[-0.02em]">
         Como funciona
       </h2>
 
-      <ol className="mx-auto mt-10 flex max-w-[440px] flex-col gap-5">
+      <ol className="mx-auto mt-12 flex max-w-[480px] flex-col gap-4">
         {STEPS.map((step, i) => (
-          <li key={step} className="flex items-center gap-4">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0F4D4A] text-[13px] font-semibold text-[#FBFEFD]">
+          <li
+            key={step}
+            className="flex items-center gap-4 rounded-[18px] border-2 border-tinta bg-papel-card px-5 py-4"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-tinta bg-amarelo font-display text-[15px] font-extrabold text-tinta">
               {i + 1}
             </span>
-            <span className="text-[15px] leading-[1.5] text-[#3F3F43]">{step}</span>
+            <span className="text-[15.5px] leading-[1.5] text-tinta/85">{step}</span>
           </li>
         ))}
       </ol>

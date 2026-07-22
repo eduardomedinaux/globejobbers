@@ -178,16 +178,34 @@ nomes mudam.)
 
 ## Design
 
+### App logado (fintech premium — base atual)
 Direção visual: "fintech séria encontra ferramenta de produtividade premium".
 Referências: Stripe, Linear, Notion, Perplexity, Arc, Framer.
 - Base quase-monocromática (off-white / quase-preto), 1 cor de marca sóbria
   (verde profundo ou azul-petróleo evocando confiança/dólar, não verde-dinheiro
   clichê). Cor de destaque só em CTAs, deltas e score.
-- Tipografia sans moderna (Inter/Geist), números tabulares no score.
+- Tipografia sans moderna (Geist — carregada no `app/layout.tsx` raiz),
+  números tabulares no score.
 - Cantos suaves (8–12px), sombras quase imperceptíveis, bordas finas.
 - Motion rápido (150–250ms) a serviço da compreensão. Score animando de 0 ao
   valor no reveal. Confete só em marcos reais, nunca em ação trivial.
 - UX writing: confiante, específico, adulto, português nativo.
+
+### Landing `/` (design system v2 — "editorial premium com sotaque brasileiro")
+Reskin visual da landing Fase 2 (só `/` — o app logado NÃO usa este sistema).
+Fonte de verdade: `globejobbers-handoff/landing-reference.html` (gitignored).
+- **Paleta** (tokens aditivos em `tailwind.config.ts`): papel `#FAF4E8`,
+  papel-card `#FFFBF2`, tinta `#17130C`, gj-teal `#0F4D4A`, laranja `#E05A26`,
+  amarelo `#F2B23A`, jeans/jeans-escuro, folha, terracota.
+- **Fontes ESCOPADAS à landing** (não globais): Fraunces (títulos), Space
+  Grotesk (UI/corpo), Space Mono (dados/rótulos) — carregadas em `app/page.tsx`
+  e aplicadas no wrapper `.gj-landing`. O layout raiz continua em Geist.
+  Chaves Tailwind: `font-display`, `font-grotesk`, `font-spacemono`.
+- **Botões pílula**: borda 2px tinta, hover `translate(-2px,-2px)` + sombra
+  dura (`shadow-dura`, 4px 4px 0 sem blur). Nada de sombra difusa/glass.
+- **Ilustrações 3D** em `public/illustrations/` (`gj-cast.png` no hero,
+  `gj-hero-duo.png` na Mentoria).
+- Cantos 18–26px; fundo cream; motion rápido (100–120ms nos botões).
 
 ---
 
