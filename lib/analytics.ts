@@ -37,7 +37,8 @@ export type AnalyticsEvent =
   | "linkedin_review_viewed"
   | "linkedin_review_started"
   | "linkedin_review_completed"
-  | "linkedin_review_failed";
+  | "linkedin_review_failed"
+  | "linkedin_review_tab_changed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

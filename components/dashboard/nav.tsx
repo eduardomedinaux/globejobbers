@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Sparkles, FileText, ScanSearch, History } from "lucide-react";
+import { LayoutDashboard, FileText, ScanSearch, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // `mobileLabel` mais curto que `label` — os itens na bottom nav não cabem com
 // os labels completos da sidebar em telas estreitas (ex.: "LinkedIn Review").
 // "Account" saiu da navegação: agora vive no dropdown "Minha conta" do header
 // (components/dashboard/account-menu.tsx), acessível também no mobile.
+// "Headline" também saiu: é uma aba dentro do LinkedIn Review (headline é
+// seção do perfil, não ferramenta irmã).
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", mobileLabel: "Início", icon: LayoutDashboard },
-  { href: "/tools/headline", label: "Headline", mobileLabel: "Headline", icon: Sparkles },
-  { href: "/tools/cv-tailor", label: "CV Tailor", mobileLabel: "CV", icon: FileText },
   { href: "/tools/linkedin-review", label: "LinkedIn Review", mobileLabel: "LinkedIn", icon: ScanSearch },
+  { href: "/tools/cv-tailor", label: "CV Tailor", mobileLabel: "CV", icon: FileText },
   { href: "/history", label: "Histórico", mobileLabel: "Histórico", icon: History },
 ];
 

@@ -19,14 +19,14 @@ export default async function DashboardPage() {
   // Layout já garante user !== null aqui — checado de novo só pro TS.
   const recentAnalyses = user ? await getRecentAnalyses(user.id, 5) : [];
 
-  const [headlineUsage, cvTailorUsage, linkedinReviewUsage] = user
+  // Headline não tem mais card próprio: virou aba do LinkedIn Review, e o
+  // limite dela aparece dentro da própria aba.
+  const [cvTailorUsage, linkedinReviewUsage] = user
     ? await Promise.all([
-        getUsageStatus(user.id, "headline"),
         getUsageStatus(user.id, "cv_tailor"),
         getUsageStatus(user.id, "linkedin_review"),
       ])
     : [
-        { used: 0, limit: FREE_LIMITS.headline, remaining: FREE_LIMITS.headline, limitReached: false },
         { used: 0, limit: FREE_LIMITS.cv_tailor, remaining: FREE_LIMITS.cv_tailor, limitReached: false },
         {
           used: 0,
@@ -44,11 +44,12 @@ export default async function DashboardPage() {
     remainingLabel: string;
   }[] = [
     {
-      icon: "sparkles",
-      name: "Headline Optimizer",
-      description: "Melhore sua headline para ser encontrado por recrutadores internacionais.",
-      href: "/tools/headline",
-      remainingLabel: remainingLabel(headlineUsage.remaining, headlineUsage.limit),
+      icon: "scan-search",
+      name: "LinkedIn Review",
+      description:
+        "Análise completa do seu perfil em 8 categorias + otimizador de headline pro mercado internacional.",
+      href: "/tools/linkedin-review",
+      remainingLabel: remainingLabel(linkedinReviewUsage.remaining, linkedinReviewUsage.limit),
     },
     {
       icon: "file-text",
@@ -56,13 +57,6 @@ export default async function DashboardPage() {
       description: "Adapte seu currículo para cada vaga usando palavras-chave da job description.",
       href: "/tools/cv-tailor",
       remainingLabel: remainingLabel(cvTailorUsage.remaining, cvTailorUsage.limit),
-    },
-    {
-      icon: "scan-search",
-      name: "LinkedIn Review",
-      description: "Receba uma análise completa do seu perfil para o mercado internacional.",
-      href: "/tools/linkedin-review",
-      remainingLabel: remainingLabel(linkedinReviewUsage.remaining, linkedinReviewUsage.limit),
     },
   ];
 
@@ -79,7 +73,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2">
         {TOOLS.map((tool) => (
           <ToolCard key={tool.name} {...tool} />
         ))}
