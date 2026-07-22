@@ -14,7 +14,30 @@ export type AnalyticsEvent =
   | "headline_generated"
   | "analysis_clicked"
   | "analysis_failed"
-  | "email_submitted";
+  | "email_submitted"
+  | "analysis_started"
+  // Fase 2 (SaaS): conta, dashboard, ferramentas logadas
+  | "landing_viewed"
+  | "signup_started"
+  | "signup_completed"
+  | "dashboard_viewed"
+  | "tool_card_clicked"
+  | "limit_reached"
+  | "upgrade_waitlist_clicked"
+  // Headline Optimizer logado
+  | "headline_tool_viewed"
+  | "headline_analysis_started"
+  | "headline_score_viewed"
+  // CV Tailor
+  | "cv_tailor_viewed"
+  | "cv_tailor_started"
+  | "cv_tailor_completed"
+  | "cv_tailor_failed"
+  // LinkedIn Review
+  | "linkedin_review_viewed"
+  | "linkedin_review_started"
+  | "linkedin_review_completed"
+  | "linkedin_review_failed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

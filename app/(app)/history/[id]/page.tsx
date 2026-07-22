@@ -1,0 +1,65 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
+import { getCurrentUser } from "@/lib/supabase-server";
+import { getAnalysisById } from "@/lib/history";
+import { ScoreMiniCard } from "@/components/score-mini-card";
+import { HeadlineCard } from "@/components/headline-card";
+import { CvTailorResultView } from "@/components/cv-tailor-result";
+import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
+import { TOOL_TYPE_LABELS } from "@/lib/types";
+import type { CvTailorResult, HeadlineAnalysisResult, LinkedinReviewResult } from "@/lib/types";
+
+export default async function HistoryDetailPage({ params }: { params: { id: string } }) {
+  const user = await getCurrentUser();
+  const analysis = user ? await getAnalysisById(user.id, params.id) : null;
+  if (!analysis) notFound();
+
+  return (
+    <div className="mx-auto flex max-w-[680px] flex-col gap-6">
+      <Link
+        href="/history"
+        className="flex items-center gap-1 text-[13.5px] text-[#8A8A85] transition-colors hover:text-[#3F3F43]"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Voltar ao histórico
+      </Link>
+
+      <div>
+        <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
+          {TOOL_TYPE_LABELS[analysis.tool_type]}
+        </p>
+        <p className="mt-1 text-[13px] text-[#8A8A85]">
+          {new Date(analysis.created_at).toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })}
+        </p>
+      </div>
+
+      {analysis.tool_type === "headline" &&
+        (() => {
+          const result = analysis.output_data as HeadlineAnalysisResult;
+          return (
+            <div className="flex flex-col gap-4">
+              <ScoreMiniCard score={result.headlineScore} />
+              <HeadlineCard
+                original={result.headline.original}
+                rewritten={result.headline.rewritten}
+                revealed
+              />
+            </div>
+          );
+        })()}
+
+      {analysis.tool_type === "cv_tailor" && (
+        <CvTailorResultView result={analysis.output_data as CvTailorResult} />
+      )}
+
+      {analysis.tool_type === "linkedin_review" && (
+        <LinkedinReviewResultView result={analysis.output_data as LinkedinReviewResult} />
+      )}
+    </div>
+  );
+}

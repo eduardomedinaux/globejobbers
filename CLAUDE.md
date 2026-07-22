@@ -53,14 +53,65 @@ medir o "aha" e falhar barato, não lançar o produto completo.
 
 ---
 
+## FASE 2 — Plataforma SaaS (implementada)
+
+O escopo acima descreve o MVP original. Ele foi deliberadamente expandido pra
+uma plataforma completa — decisão explícita do usuário, não desvio de escopo.
+As regras inegociáveis abaixo continuam valendo integralmente; o que mudou é
+que agora também existe:
+
+- **Landing institucional em `/`** (Hero, Problema, Ferramentas, Como
+  funciona, Mentoria, Pricing) — `/` deixou de ser o Ato 2.
+- **Fluxos anônimos originais preservados como teasers públicos**, sem login:
+  Ato 2 (PDF completo) em `/preview/full-scan`, Ato 1 (print da headline) em
+  `/preview/headline`. `/headline` redireciona permanentemente pra
+  `/preview/headline` (link já usado no Instagram).
+- **Login via Google (Supabase Auth + `@supabase/ssr`)** em `/login`,
+  callback em `/auth/callback`.
+- **Dashboard logado** (`app/(app)/`, guarda de autenticação no layout) com
+  nav (sidebar desktop / bottom nav mobile), 3 ferramentas, uso mensal e
+  histórico recente.
+- **3 ferramentas logadas**, cada uma com limite gratuito mensal
+  (`lib/usage.ts`, calculado via `COUNT` em `analyses`, sem tabela de
+  contador separada):
+  - `/tools/headline` — Headline Optimizer (3/mês). Dois modos: colar texto
+    ou responder perguntas guiadas (não reaproveita os prompts do Ato 1/2).
+  - `/tools/cv-tailor` — CV Tailor (2/mês). CV colado ou PDF + job
+    description + cargo-alvo; nunca inventa experiência/conquista.
+  - `/tools/linkedin-review` — LinkedIn Review (1/mês). 8 categorias
+    (headline, about, experience, keywords, international positioning,
+    recruiter clarity, proof of impact, english readiness), cada uma com
+    nota, diagnóstico, recomendação e exemplo.
+- **Histórico** em `/history` e `/history/[id]` (reabre qualquer análise
+  salva).
+- **UpgradeModal + waitlist** (`/api/waitlist`, tabela `waitlist`) quando o
+  limite mensal é atingido — sem Stripe, só captura de interesse.
+
+Tabelas novas em `supabase/schema.sql`: `profiles`, `analyses`, `waitlist`
+(mesmo padrão de `leads`: RLS habilitado sem policies, acesso só via service
+role). **Pendência manual:** rodar esse SQL no Supabase e habilitar o
+provider Google em Authentication → Providers antes do login funcionar de
+ponta a ponta.
+
+Arquitetura completa (rotas, schema, riscos, ordem de implementação):
+`/Users/eduardomedina/.claude/plans/snuggly-sniffing-sonnet.md`.
+
+---
+
 ## Stack
 
 - **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui.
 - **IA:** API da Anthropic, chamada SEMPRE numa Route Handler do servidor.
 - **Extração de PDF:** biblioteca local (ex.: `unpdf` ou `pdf-parse`) — extrai
   TEXTO do PDF no servidor. NÃO mandar PDF como imagem para a IA.
-- (Futuro, não agora: Supabase/Postgres+RLS, Stripe, Resend, pgvector,
-  PostHog, Sentry, Helicone.)
+- **Auth:** Supabase Auth (Google OAuth) via `@supabase/ssr` — ver "FASE 2"
+  acima. Client admin (service role) em `lib/supabase.ts` continua sendo o
+  único a ler/escrever dados; `lib/supabase-browser.ts` e
+  `lib/supabase-server.ts` são só pra sessão/autenticação.
+- **Analytics:** PostHog (`posthog-js` no client, `posthog-node` pra eventos
+  server-side como `signup_completed` — ver `lib/analytics.ts` e
+  `lib/posthog-server.ts`).
+- (Futuro, não agora: Stripe, Resend, pgvector, Sentry, Helicone.)
 
 ---
 

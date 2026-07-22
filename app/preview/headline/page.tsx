@@ -4,14 +4,16 @@ import { useState, useRef, useEffect } from "react";
 import { ImagePlus, CheckCircle2 } from "lucide-react";
 import { Wordmark } from "@/components/wordmark";
 import { HeadlineCard } from "@/components/headline-card";
+import { HeadlineValueProp } from "@/components/headline-value-prop";
+import { ScoreMiniCard } from "@/components/score-mini-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
-import { getScoreStage } from "@/lib/score-stages";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import type { HeadlineAnalysisResult } from "@/lib/types";
 
-type Step = "input" | "loading" | "result";
+type Step = "intro" | "input" | "loading" | "result";
 
 const LOADING_MESSAGES = [
   "Lendo sua headline…",
@@ -19,47 +21,11 @@ const LOADING_MESSAGES = [
   "Reescrevendo para o mercado em dólar…",
 ];
 
-function useCountUp(target: number, durationMs = 700) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    let start: number | null = null;
-    let frame: number;
-    function step(timestamp: number) {
-      if (start === null) start = timestamp;
-      const progress = Math.min(1, (timestamp - start) / durationMs);
-      setValue(Math.round(progress * target));
-      if (progress < 1) frame = requestAnimationFrame(step);
-    }
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [target, durationMs]);
-  return value;
-}
-
-function ScoreMiniCard({ score }: { score: number }) {
-  const animatedScore = useCountUp(score);
-  const stage = getScoreStage(score);
-  return (
-    <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-2">
-        <div className="flex items-baseline gap-1">
-          <span className="text-[60px] font-semibold leading-[0.9] tracking-[-0.04em] tabular-nums text-[#0F4D4A]">
-            {animatedScore}
-          </span>
-          <span className="text-xl font-medium text-[#B4B4AF]">/100</span>
-        </div>
-        <span className="rounded-full bg-[#EAF1EF] px-2.5 py-1 text-[13px] font-semibold text-[#0F4D4A]">
-          {stage.label}
-        </span>
-      </div>
-      <p className="mt-2 text-[13.5px] text-[#6E6E72]">Score da sua Headline</p>
-      <p className="mt-1 text-[13.5px] leading-[1.5] text-[#6E6E72]">{stage.description}</p>
-    </div>
-  );
-}
-
 export default function HeadlinePage() {
   const [step, setStep] = useState<Step>("input");
+  const isMobile = useIsMobile();
+  const isMobileInitialized = useRef(false);
+
   const [analysis, setAnalysis] = useState<HeadlineAnalysisResult | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -72,6 +38,13 @@ export default function HeadlinePage() {
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Set initial step once viewport is known — mobile enters "intro", desktop stays "input"
+  useEffect(() => {
+    if (isMobile === null || isMobileInitialized.current) return;
+    isMobileInitialized.current = true;
+    if (isMobile) setStep("intro");
+  }, [isMobile]);
 
   useEffect(() => {
     if (step !== "loading") return;
@@ -151,6 +124,11 @@ export default function HeadlinePage() {
     }
   }
 
+  function handleStartFromIntro() {
+    track("analysis_started", { source: "ato1", device: "mobile" });
+    setStep("input");
+  }
+
   function handleReset() {
     setStep("input");
     setAnalysis(null);
@@ -175,10 +153,28 @@ export default function HeadlinePage() {
       />
 
       <div className="relative mx-auto flex max-w-[480px] flex-col px-5 pb-16">
-        {/* Header */}
-        <div className="flex justify-center pb-2 pt-8">
-          <Wordmark />
-        </div>
+        {/* Header — hidden on intro so HeadlineValueProp owns the Wordmark */}
+        {step !== "intro" && (
+          <div className="flex justify-center pb-2 pt-8">
+            <Wordmark />
+          </div>
+        )}
+
+        {/* ── HYDRATION GUARD: skeleton until viewport is known ── */}
+        {isMobile === null ? (
+          <div className="flex flex-col gap-4 pt-10">
+            <Skeleton className="mx-auto h-7 w-3/4 rounded-lg" />
+            <Skeleton className="h-4 w-full rounded" />
+            <Skeleton className="h-4 w-5/6 rounded" />
+            <Skeleton className="mt-2 h-48 w-full rounded-2xl" />
+            <Skeleton className="h-12 w-full rounded-xl" />
+          </div>
+        ) : (
+          <>
+            {/* ── INTRO (mobile only) ── */}
+            {step === "intro" && (
+              <HeadlineValueProp onStart={handleStartFromIntro} />
+            )}
 
         {/* ── INPUT ── */}
         {step === "input" && (
@@ -190,6 +186,18 @@ export default function HeadlinePage() {
               <p className="mt-4 text-[15px] leading-[1.55] text-[#5C5C60]">
                 Envie um print da sua headline no LinkedIn e receba uma avaliação + reescrita
                 profissional grátis.
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-col items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/linkedin-sample-mobile.png"
+                alt="Exemplo de print da headline no LinkedIn"
+                className="w-full rounded-2xl border border-[#EAEAE4] shadow-[0_1px_2px_rgba(20,20,20,0.03)]"
+              />
+              <p className="text-[12.5px] text-[#6E6E72]">
+                Mostre pelo menos esta parte do seu perfil
               </p>
             </div>
 
@@ -337,6 +345,8 @@ export default function HeadlinePage() {
               Analisar outro print
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
     </main>

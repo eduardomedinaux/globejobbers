@@ -16,9 +16,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "GlobeJobbers — Score Internacional do seu perfil",
+  title: "GlobeJobbers — Seu copiloto de IA para vagas internacionais",
   description:
-    "Cole seu perfil de LinkedIn e descubra, em minutos, o quão pronto ele está para recrutadores internacionais que pagam em dólar.",
+    "Otimize seu LinkedIn, adapte seu currículo e se prepare para vagas em dólar com ferramentas de IA criadas para recrutadores internacionais.",
 };
 
 export default function RootLayout({

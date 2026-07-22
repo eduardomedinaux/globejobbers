@@ -1,4 +1,227 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { HeadlineBuilderAnswers } from "@/lib/types";
+
+// --- LinkedIn Review (Fase 2) ---
+//
+// Análise mais completa que o Ato 2 (score + 5 subscores + 1 headline
+// reescrita): aqui são 8 categorias, cada uma com nota, diagnóstico,
+// recomendação prática e exemplo melhorado quando aplicável. Prosa premium
+// → claude-sonnet-4-6, mesma chamada única.
+
+export const LINKEDIN_REVIEW_SYSTEM_PROMPT = `Você é um recrutador técnico sênior especializado em colocar profissionais
+brasileiros em vagas remotas internacionais pagas em dólar.
+
+O usuário vai enviar o texto completo do perfil de LinkedIn dele (colado ou
+extraído de PDF). Avalie o perfil em 8 categorias, cada uma com nota de 0 a
+100, diagnóstico (2-3 frases sobre o que está bom/ruim especificamente
+nesse perfil, não genérico), recomendação prática (o que fazer pra
+melhorar) e, quando fizer sentido, um exemplo de texto melhorado (deixe
+"example" como string vazia quando não se aplicar, ex.: categorias sem um
+trecho de texto claro pra reescrever):
+
+- headline: comunica especialidade, senioridade e valor com clareza pra
+  quem não conhece o mercado brasileiro?
+- about: a seção "Sobre" conta uma narrativa de carreira clara, ou é
+  genérica/ausente?
+- experience: as experiências mostram IMPACTO com números/resultados, ou
+  são listas de responsabilidades?
+- keywords: o perfil usa termos e ferramentas que recrutadores
+  internacionais buscam na área do candidato?
+- internationalPositioning: olhando o perfil como um todo, ele se posiciona
+  para o mercado internacional (remoto, USD) ou parece voltado só ao
+  mercado brasileiro?
+- recruiterClarity: um recrutador internacional entenderia rapidamente
+  "quem é essa pessoa e onde ela encaixa"?
+- proofOfImpact: há evidência concreta (métricas, resultados, prêmios,
+  projetos) que comprove o valor entregue?
+- englishReadiness: avalie com base em evidências OBSERVÁVEIS no texto —
+  erros gramaticais, presença/uso correto de termos técnicos em inglês,
+  fluência aparente de trechos em inglês. Se o perfil estiver inteiramente
+  em português, avalie só presença/correção de termos técnicos
+  incorporados, sem especular sobre conversação.
+
+"overallScore" (0-100) é uma síntese ponderada das 8 categorias, refletindo
+a prontidão geral do perfil pro mercado internacional — não é média simples.
+
+Responda SEMPRE chamando a ferramenta "submit_linkedin_review". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildLinkedinReviewUserPrompt(profileText: string): string {
+  return `Perfil de LinkedIn para análise (texto colado ou extraído de PDF):
+
+"""
+${profileText}
+"""
+
+Analise as 8 categorias e chame "submit_linkedin_review" com o resultado.`;
+}
+
+function linkedinCategoryProperty(description: string) {
+  return {
+    type: "object" as const,
+    properties: {
+      score: { type: "integer" as const, minimum: 0, maximum: 100 },
+      diagnosis: { type: "string" as const, description: "2-3 frases específicas sobre este perfil." },
+      recommendation: { type: "string" as const, description: "O que fazer pra melhorar." },
+      example: {
+        type: "string" as const,
+        description: "Exemplo de texto melhorado, ou string vazia se não se aplicar.",
+      },
+    },
+    required: ["score", "diagnosis", "recommendation", "example"],
+    description,
+  };
+}
+
+export const LINKEDIN_REVIEW_TOOL: Anthropic.Tool = {
+  name: "submit_linkedin_review",
+  description: "Envia a análise completa do perfil de LinkedIn: score geral e 8 categorias detalhadas.",
+  input_schema: {
+    type: "object",
+    properties: {
+      overallScore: { type: "integer", minimum: 0, maximum: 100 },
+      headline: linkedinCategoryProperty("Clareza de especialidade, senioridade e valor na headline."),
+      about: linkedinCategoryProperty('Qualidade da narrativa na seção "Sobre".'),
+      experience: linkedinCategoryProperty("Impacto quantificado nas experiências."),
+      keywords: linkedinCategoryProperty("Uso de termos/ferramentas buscados por recrutadores internacionais."),
+      internationalPositioning: linkedinCategoryProperty("Posicionamento pro mercado internacional (remoto, USD)."),
+      recruiterClarity: linkedinCategoryProperty("Clareza de quem é a pessoa e onde ela encaixa."),
+      proofOfImpact: linkedinCategoryProperty("Evidência concreta de valor entregue."),
+      englishReadiness: linkedinCategoryProperty("Qualidade observável do inglês no perfil."),
+    },
+    required: [
+      "overallScore",
+      "headline",
+      "about",
+      "experience",
+      "keywords",
+      "internationalPositioning",
+      "recruiterClarity",
+      "proofOfImpact",
+      "englishReadiness",
+    ],
+  },
+};
+
+// --- CV Tailor (Fase 2) ---
+//
+// Prosa premium (reescrita do CV) → claude-sonnet-4-6, mesma chamada única
+// faz extração de keywords + comparação + reescrita (ver CLAUDE.md "Regras
+// inegociáveis #2" e o mesmo padrão já usado em ANALYSIS_SYSTEM_PROMPT).
+
+export const CV_TAILOR_SYSTEM_PROMPT = `Você é um recrutador técnico sênior e especialista em ATS (Applicant Tracking
+Systems), especializado em adaptar currículos de profissionais brasileiros
+para vagas remotas internacionais pagas em dólar.
+
+O usuário vai enviar o texto do CV atual dele, a descrição de uma vaga
+(job description) e o cargo-alvo. Sua tarefa, nesta ordem:
+
+1. Analise a job description e extraia as palavras-chave técnicas e
+   comportamentais mais relevantes que ela busca.
+2. Compare essas palavras-chave com o CV: quais já aparecem
+   ("keywordsFound") e quais estão ausentes ou pouco destacadas
+   ("keywordsMissing").
+3. Escreva um resumo curto (2-3 frases) de quão compatível o CV atual está
+   com a vaga ("compatibilitySummary") e um score de 0 a 100
+   ("compatibilityScore").
+4. Reescreva o CV inteiro ("rewrittenCv") incorporando as keywords ausentes
+   ONDE FOR HONESTO fazer isso, melhorando clareza e impacto (números,
+   resultados, verbos de ação), e otimizando para ATS sem virar uma lista
+   de palavras-chave sem sentido — precisa continuar lendo como texto
+   humano.
+5. Liste de 3 a 8 bullets de experiência reescritos/melhorados
+   ("improvedBullets") como exemplos concretos do que mudou.
+6. Liste recomendações práticas adicionais ("recommendations") que o
+   usuário mesmo precisa aplicar (ex.: informação que falta e não pode ser
+   inventada).
+
+Regras inegociáveis:
+- NUNCA invente conquistas, números, empresas, cargos ou experiências que
+  não estejam no CV original. Se uma informação está faltando pra preencher
+  bem uma seção, deixe um placeholder claro (ex.: "[quantifique o impacto
+  aqui]") ou mencione a lacuna em "recommendations" — nunca invente o dado.
+- Mantenha tom profissional, confiante e no idioma pedido pelo usuário
+  (padrão: inglês, mercado internacional).
+- Sem buzzwords vazias ("passionate", "synergy", "rockstar").
+
+Responda SEMPRE chamando a ferramenta "submit_cv_tailoring". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildCvTailorUserPrompt(
+  cvText: string,
+  jobDescription: string,
+  targetRole: string,
+  language: "en" | "pt",
+): string {
+  return `Cargo-alvo: ${targetRole}
+Idioma de saída do CV reescrito: ${language === "pt" ? "português" : "inglês"}
+
+Job description da vaga:
+"""
+${jobDescription}
+"""
+
+CV atual do usuário:
+"""
+${cvText}
+"""
+
+Analise e chame "submit_cv_tailoring" com o resultado.`;
+}
+
+export const CV_TAILOR_TOOL: Anthropic.Tool = {
+  name: "submit_cv_tailoring",
+  description:
+    "Envia o resultado da adaptação do CV: score de compatibilidade, resumo, keywords encontradas/ausentes, CV reescrito, bullets melhorados e recomendações.",
+  input_schema: {
+    type: "object",
+    properties: {
+      compatibilityScore: {
+        type: "integer",
+        description: "Compatibilidade do CV atual com a vaga, de 0 a 100.",
+        minimum: 0,
+        maximum: 100,
+      },
+      compatibilitySummary: {
+        type: "string",
+        description: "Resumo de 2-3 frases sobre a compatibilidade do CV com a vaga.",
+      },
+      keywordsFound: {
+        type: "array",
+        items: { type: "string" },
+        description: "Palavras-chave da vaga que já aparecem no CV.",
+      },
+      keywordsMissing: {
+        type: "array",
+        items: { type: "string" },
+        description: "Palavras-chave da vaga ausentes ou pouco destacadas no CV.",
+      },
+      rewrittenCv: {
+        type: "string",
+        description: "Versão completa do CV reescrita/adaptada para a vaga.",
+      },
+      improvedBullets: {
+        type: "array",
+        items: { type: "string" },
+        description: "De 3 a 8 bullets de experiência reescritos como exemplo do que mudou.",
+      },
+      recommendations: {
+        type: "array",
+        items: { type: "string" },
+        description: "Recomendações práticas adicionais que o usuário precisa aplicar.",
+      },
+    },
+    required: [
+      "compatibilityScore",
+      "compatibilitySummary",
+      "keywordsFound",
+      "keywordsMissing",
+      "rewrittenCv",
+      "improvedBullets",
+      "recommendations",
+    ],
+  },
+};
 
 // Prompt e schema usados pela Route Handler /api/analyze (ver lib/anthropic.ts).
 //
@@ -123,6 +346,120 @@ export const HEADLINE_VISION_TOOL: Anthropic.Tool = {
           original: {
             type: "string",
             description: "Headline atual extraída da imagem (texto literal).",
+          },
+          rewritten: {
+            type: "string",
+            description: "Headline reescrita em inglês, máximo 220 caracteres.",
+          },
+        },
+        required: ["original", "rewritten"],
+      },
+    },
+    required: ["headlineScore", "headline"],
+  },
+};
+
+// --- Headline Optimizer logado (Fase 2): dois modos, mesmo output ---
+//
+// NÃO reaproveita os prompts/tools do Ato 1 (visão) nem do Ato 2 (perfil
+// completo) acima — é uma ferramenta nova e mais leve, com dois jeitos de
+// entrada que o usuário escolhe na própria página (ver
+// app/(app)/tools/headline/page.tsx):
+//  - "Colar texto": já tem uma headline, só quer avaliar/reescrever.
+//  - "Perguntas guiadas": não tem headline pronta, responde um formulário
+//    curto e a IA sintetiza uma do zero.
+// Ambos devolvem o mesmo formato (headlineScore + headline{original,
+// rewritten}), reaproveitando HeadlineAnalysisResult/HEADLINE_TEXT_TOOL.
+
+export const HEADLINE_TEXT_SYSTEM_PROMPT = `Você é um recrutador técnico sênior especializado em colocar profissionais
+brasileiros em vagas remotas internacionais pagas em dólar.
+
+O usuário vai colar o texto da headline atual do LinkedIn dele. Sua tarefa:
+
+1. Avalie a headline colada no critério "quão eficaz é para chamar a atenção
+   de recrutadores internacionais (EUA/Europa, remoto, USD)" e gere um score
+   de 0 a 100 (campo "headlineScore"). Devolva o texto colado, sem alterações,
+   no campo "original".
+2. Reescreva a headline no padrão internacional: especialidade + nicho/indústria
+   + proposta de valor quantificada quando possível (campo "rewritten").
+   - Máximo de 220 caracteres.
+   - Em inglês.
+   - Confiante e específico, sem buzzwords vazias ("passionate", "synergy").
+
+Responda SEMPRE chamando a ferramenta "submit_headline_result". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildHeadlineTextUserPrompt(headlineText: string): string {
+  return `Headline colada pelo usuário:
+
+"""
+${headlineText}
+"""
+
+Analise e chame "submit_headline_result" com o resultado.`;
+}
+
+export const HEADLINE_BUILDER_SYSTEM_PROMPT = `Você é um recrutador técnico sênior especializado em colocar profissionais
+brasileiros em vagas remotas internacionais pagas em dólar.
+
+O usuário NÃO tem uma headline pronta — ele respondeu um formulário curto
+sobre a carreira dele. Sua tarefa:
+
+1. Sintetize, a partir só das respostas, uma headline "original" simples e
+   genérica (como alguém sem orientação escreveria sozinho — ex.: só cargo e
+   empresa/área, sem venda de valor). Isto vira o "antes" na comparação.
+2. Reescreva essa headline no padrão internacional para o campo "rewritten":
+   especialidade + nicho/indústria + proposta de valor quantificada quando
+   possível, usando as respostas do usuário (anos de experiência, skills,
+   indústria-alvo, conquista informada).
+   - Máximo de 220 caracteres.
+   - Em inglês.
+   - Confiante e específico, sem buzzwords vazias ("passionate", "synergy").
+   - NÃO invente conquistas, números ou experiências que o usuário não deu.
+3. Atribua um "headlineScore" (0-100) refletindo o quão forte é o
+   posicionamento resultante dado o que o usuário informou.
+
+Responda SEMPRE chamando a ferramenta "submit_headline_result". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildHeadlineBuilderUserPrompt(answers: HeadlineBuilderAnswers): string {
+  return `Respostas do formulário do usuário:
+- Cargo/área atual: ${answers.currentRole}
+- Anos de experiência: ${answers.yearsOfExperience}
+- Especialidade/nicho: ${answers.specialty}
+- Principais skills/ferramentas: ${answers.keySkills.join(", ")}
+- Indústria-alvo: ${answers.targetIndustry}
+- Conquista quantificável: ${answers.notableAchievement}
+- Nível de senioridade: ${answers.seniorityLevel}
+
+Sintetize a headline "antes" e a reescrita "depois", e chame
+"submit_headline_result" com o resultado.`;
+}
+
+/**
+ * Tool compartilhada pelos dois modos acima — mesmo schema do Ato 1
+ * (HEADLINE_VISION_TOOL), mas com nome próprio pra não confundir com a
+ * ferramenta de visão (entrada é texto, não imagem).
+ */
+export const HEADLINE_TEXT_TOOL: Anthropic.Tool = {
+  name: "submit_headline_result",
+  description:
+    "Envia o resultado da headline: score, headline original (colada ou sintetizada) e headline reescrita em inglês.",
+  input_schema: {
+    type: "object",
+    properties: {
+      headlineScore: {
+        type: "integer",
+        description: "Score da headline, de 0 a 100.",
+        minimum: 0,
+        maximum: 100,
+      },
+      headline: {
+        type: "object",
+        properties: {
+          original: {
+            type: "string",
+            description: "Headline original (colada pelo usuário, ou sintetizada a partir das respostas do formulário).",
           },
           rewritten: {
             type: "string",
