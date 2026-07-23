@@ -95,17 +95,29 @@ grant insert, select on public.waitlist to service_role;
 -- Perfil de Mercado (ver PROPOSTA-PERFIL-DE-MERCADO.md)
 -- ============================================================================
 --
--- Ativo durável (não evento): criado no fluxo de headline a partir de 1-3
+-- Ativo durável (não evento): criado no fluxo de headline a partir de 1-5
 -- vagas desejadas, consumido por N ferramentas (headline hoje; CV Tailor,
--- LinkedIn Review, About, Experiências no futuro). Por isso tabela própria,
--- fora de `analyses`. O "perfil ativo" do usuário é o mais recente
--- (created_at desc) — gestão de múltiplos perfis é UI de fase posterior.
+-- LinkedIn Review, Cover Letter, Interview Prep no futuro). Por isso tabela
+-- própria, fora de `analyses`. O "perfil ativo" do usuário é o mais recente
+-- (created_at desc).
+--
+-- Metodologia: cargo-alvo, senioridade e mercado são IDENTIFICADOS PELA IA
+-- lendo as vagas (o usuário só confirma/edita) — o único input declarado é
+-- o cargo atual, opcional.
+--
+-- MIGRAÇÃO: se você criou a tabela na versão anterior (com current_role NOT
+-- NULL e colunas de especialidades), rode:
+--   alter table public.market_profiles alter column current_role drop not null;
+--   alter table public.market_profiles drop column if exists inferred_specialties;
+--   alter table public.market_profiles drop column if exists confirmed_specialties;
+--   alter table public.market_profiles drop column if exists origin;
 
 create table if not exists public.market_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  -- Alvo (Passo 1 do wizard)
-  current_role text not null,
+  -- Único input declarado pelo usuário (opcional)
+  current_role text,
+  -- Identificados pela IA lendo as vagas; confirmados/editados pelo usuário
   target_role text not null,
   target_market text not null check (
     target_market in ('us_remote', 'canada', 'europe', 'latam_remote', 'other')
@@ -115,11 +127,6 @@ create table if not exists public.market_profiles (
   -- Output da extração (temperature 0) — formato em lib/types.ts
   -- (MarketProfileKeywords: cada termo com count e índices das vagas)
   keywords jsonb not null,
-  inferred_specialties text[] not null default '{}',
-  confirmed_specialties text[] not null default '{}',
-  -- Proveniência: 'jobs' = extraído de vagas reais; 'synthetic' = estimado
-  -- pelo modelo (fallback "não tenho vagas", sempre rotulado na UI)
-  origin text not null check (origin in ('jobs', 'synthetic')),
   -- Texto das vagas (truncado a ~15k chars cada) pra auditoria/reprocesso
   -- sem re-pedir ao usuário. Descrições públicas, sem dado sensível.
   source_jobs jsonb,

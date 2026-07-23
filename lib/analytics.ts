@@ -43,7 +43,10 @@ export type AnalyticsEvent =
   | "market_profile_started"
   | "market_profile_created"
   | "market_profile_failed"
-  | "market_headline_generated";
+  | "market_profile_edited"
+  | "market_headline_generated"
+  | "job_url_imported"
+  | "job_url_import_failed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

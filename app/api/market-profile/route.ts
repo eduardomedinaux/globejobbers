@@ -7,7 +7,6 @@ import type {
   HeadlineLanguage,
   MarketProfile,
   MarketProfileKeywords,
-  MarketProfileTarget,
   TargetMarket,
 } from "@/lib/types";
 
@@ -15,58 +14,38 @@ import type {
 // ilegível: input ruim não vira perfil-lixo silenciosamente).
 const MIN_JOB_TEXT_LENGTH = 300;
 const MAX_JOB_TEXT_LENGTH = 15000;
-const MAX_JOBS = 3;
-
-const VALID_MARKETS: TargetMarket[] = ["us_remote", "canada", "europe", "latam_remote", "other"];
+const MAX_JOBS = 5;
 
 interface RequestBody {
-  target?: unknown;
-  /** 1-3 descrições de vaga coladas. Ausente/vazio + synthetic=true → fallback estimado. */
+  /** Cargo atual — opcional, só contexto (a fonte de verdade são as vagas). */
+  currentRole?: unknown;
+  /** 1-5 descrições de vaga (coladas ou importadas de URL no client). */
   jobs?: unknown;
-  synthetic?: unknown;
-}
-
-function validateTarget(raw: unknown): MarketProfileTarget | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const obj = raw as Record<string, unknown>;
-
-  const currentRole = typeof obj.currentRole === "string" ? obj.currentRole.trim().slice(0, 120) : "";
-  const targetRole = typeof obj.targetRole === "string" ? obj.targetRole.trim().slice(0, 120) : "";
-  const seniority = typeof obj.seniority === "string" ? obj.seniority.trim().slice(0, 60) : "";
-  const targetMarket = obj.targetMarket as TargetMarket;
-  const language: HeadlineLanguage = obj.language === "pt" ? "pt" : "en";
-
-  if (!currentRole || !targetRole || !seniority || !VALID_MARKETS.includes(targetMarket)) {
-    return null;
-  }
-
-  return { currentRole, targetRole, targetMarket, seniority, language };
 }
 
 /** Converte a linha do banco (snake_case) pro shape do front (lib/types.ts). */
 function rowToProfile(row: Record<string, unknown>): MarketProfile {
   return {
     id: row.id as string,
-    currentRole: row.current_role as string,
+    currentRole: (row.current_role as string) ?? "",
     targetRole: row.target_role as string,
     targetMarket: row.target_market as TargetMarket,
     seniority: row.seniority as string,
     language: (row.language as HeadlineLanguage) ?? "en",
     keywords: row.keywords as MarketProfileKeywords,
-    inferredSpecialties: (row.inferred_specialties as string[]) ?? [],
-    confirmedSpecialties: (row.confirmed_specialties as string[]) ?? [],
-    origin: row.origin as MarketProfile["origin"],
     createdAt: row.created_at as string,
   };
 }
 
 /**
- * Cria o Perfil de Mercado (Passos 1-2 do wizard → Passo 3).
+ * Cria o Perfil de Mercado lendo as vagas desejadas: cargo-alvo,
+ * senioridade e mercado são IDENTIFICADOS pela IA (o usuário confirma/edita
+ * na tela seguinte — nunca declara). Ver PROPOSTA-PERFIL-DE-MERCADO.md.
  *
  * Contabilidade de uso: a criação NÃO grava em `analyses` (o fluxo completo
  * perfil+headline consome 1 uso de headline, contado na geração). Mas o
- * limite é checado AQUI também, pra não deixar o usuário colar 3 vagas e só
- * descobrir o limite estourado na hora de gerar.
+ * limite é checado AQUI também, pra não deixar o usuário colar as vagas e
+ * só descobrir o limite estourado na hora de gerar.
  */
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -89,42 +68,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const target = validateTarget(body.target);
-  if (!target) {
+  const currentRole =
+    typeof body.currentRole === "string" ? body.currentRole.trim().slice(0, 120) : "";
+
+  const rawJobs = Array.isArray(body.jobs) ? body.jobs : [];
+  const jobs = rawJobs
+    .filter((j): j is string => typeof j === "string" && j.trim().length > 0)
+    .map((j) => j.trim().slice(0, MAX_JOB_TEXT_LENGTH))
+    .slice(0, MAX_JOBS);
+
+  if (jobs.length === 0) {
+    return NextResponse.json({ error: "Cole pelo menos 1 descrição de vaga." }, { status: 400 });
+  }
+
+  const tooShort = jobs.findIndex((j) => j.length < MIN_JOB_TEXT_LENGTH);
+  if (tooShort !== -1) {
     return NextResponse.json(
-      { error: "Preencha cargo atual, cargo desejado, mercado e senioridade." },
+      {
+        error: `A vaga ${tooShort + 1} parece incompleta. Cole a descrição completa (requisitos, responsabilidades).`,
+      },
       { status: 400 },
     );
   }
 
-  const synthetic = body.synthetic === true;
-  let jobs: string[] = [];
-
-  if (!synthetic) {
-    const rawJobs = Array.isArray(body.jobs) ? body.jobs : [];
-    jobs = rawJobs
-      .filter((j): j is string => typeof j === "string" && j.trim().length > 0)
-      .map((j) => j.trim().slice(0, MAX_JOB_TEXT_LENGTH))
-      .slice(0, MAX_JOBS);
-
-    if (jobs.length === 0) {
-      return NextResponse.json({ error: "Cole pelo menos 1 descrição de vaga." }, { status: 400 });
-    }
-
-    const tooShort = jobs.findIndex((j) => j.length < MIN_JOB_TEXT_LENGTH);
-    if (tooShort !== -1) {
-      return NextResponse.json(
-        {
-          error: `A vaga ${tooShort + 1} parece incompleta. Cole a descrição completa (requisitos, responsabilidades).`,
-        },
-        { status: 400 },
-      );
-    }
-  }
-
   let extraction;
   try {
-    extraction = await extractMarketProfile(target, synthetic ? null : jobs);
+    extraction = await extractMarketProfile(currentRole || null, jobs);
   } catch (error) {
     console.error("[/api/market-profile]", error);
     return NextResponse.json(
@@ -138,16 +107,13 @@ export async function POST(request: NextRequest) {
     .from("market_profiles")
     .insert({
       user_id: user.id,
-      current_role: target.currentRole,
-      target_role: target.targetRole,
-      target_market: target.targetMarket,
-      seniority: target.seniority,
-      language: target.language,
+      current_role: currentRole || null,
+      target_role: extraction.identified.targetRole,
+      target_market: extraction.identified.targetMarket,
+      seniority: extraction.identified.seniority,
+      language: "en",
       keywords: extraction.keywords,
-      inferred_specialties: extraction.inferredSpecialties,
-      confirmed_specialties: [],
-      origin: synthetic ? "synthetic" : "jobs",
-      source_jobs: synthetic ? null : jobs.map((text, i) => ({ index: i + 1, text, chars: text.length })),
+      source_jobs: jobs.map((text, i) => ({ index: i + 1, text, chars: text.length })),
     })
     .select()
     .single();

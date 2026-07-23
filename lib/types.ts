@@ -145,14 +145,15 @@ const LINKEDIN_REVIEW_CATEGORY_LABELS: Record<LinkedinReviewCategoryKey, string>
 export const LINKEDIN_REVIEW_CATEGORY_META: { key: LinkedinReviewCategoryKey; label: string }[] =
   LINKEDIN_REVIEW_CATEGORY_KEYS.map((key) => ({ key, label: LINKEDIN_REVIEW_CATEGORY_LABELS[key] }));
 
+
 // --- Perfil de Mercado (ativo central — ver PROPOSTA-PERFIL-DE-MERCADO.md) ---
 //
-// Criado a partir de 1-3 vagas desejadas (origin "jobs") ou estimado pelo
-// modelo quando o usuário não tem vagas em mãos (origin "synthetic", sempre
-// sinalizado na UI). Consumido pela geração de headline hoje; CV Tailor,
-// LinkedIn Review, About e Experiências consomem o mesmo perfil no futuro.
-
-export type MarketProfileOrigin = "jobs" | "synthetic";
+// Metodologia: a fonte de verdade é a DESCRIÇÃO DAS VAGAS que o usuário quer
+// conquistar. O usuário informa só o cargo atual (opcional) e cola 1-5 vagas
+// (texto ou URL); cargo-alvo, senioridade e mercado são INFERIDOS das vagas
+// e apenas confirmados/editados na tela "Perfil identificado". Consumido
+// pela headline hoje; CV Tailor, LinkedIn Review, Cover Letter e Interview
+// Prep consomem o mesmo perfil no futuro.
 
 export type TargetMarket = "us_remote" | "canada" | "europe" | "latam_remote" | "other";
 
@@ -161,24 +162,26 @@ export const TARGET_MARKET_OPTIONS: { value: TargetMarket; label: string }[] = [
   { value: "canada", label: "Canadá" },
   { value: "europe", label: "Europa" },
   { value: "latam_remote", label: "LatAm Remote" },
-  { value: "other", label: "Outro" },
+  { value: "other", label: "Outro / não identificado" },
 ];
+
+export const TARGET_MARKET_LABELS: Record<TargetMarket, string> = Object.fromEntries(
+  TARGET_MARKET_OPTIONS.map(({ value, label }) => [value, label]),
+) as Record<TargetMarket, string>;
 
 export type HeadlineLanguage = "en" | "pt";
 
-/** Alvo de carreira informado no Passo 1 do wizard. */
-export interface MarketProfileTarget {
-  currentRole: string;
+/** O que a IA identifica LENDO as vagas (nunca perguntado ao usuário). */
+export interface MarketProfileIdentified {
   targetRole: string;
-  targetMarket: TargetMarket;
   seniority: string;
-  language: HeadlineLanguage;
+  targetMarket: TargetMarket;
 }
 
 /** Um termo extraído das vagas, com a prova da recorrência. */
 export interface MarketKeyword {
   term: string;
-  /** Em quantas das vagas fornecidas o termo aparece (1-3). */
+  /** Em quantas das vagas fornecidas o termo aparece (1-5). */
   count: number;
   /** Índices 1-based das vagas onde o termo aparece. */
   jobs: number[];
@@ -186,15 +189,15 @@ export interface MarketKeyword {
 
 export interface MarketProfileKeywords {
   hardSkills: MarketKeyword[];
+  softSkills: MarketKeyword[];
   tools: MarketKeyword[];
   responsibilities: MarketKeyword[];
-  softSkills: MarketKeyword[];
   atsTerms: MarketKeyword[];
 }
 
 /** Única fonte da ordem/labels dos grupos de keywords na UI. */
 export const MARKET_KEYWORD_GROUP_META: { key: keyof MarketProfileKeywords; label: string }[] = [
-  { key: "hardSkills", label: "Competências técnicas" },
+  { key: "hardSkills", label: "Hard skills" },
   { key: "tools", label: "Ferramentas & tecnologias" },
   { key: "responsibilities", label: "Responsabilidades" },
   { key: "softSkills", label: "Soft skills" },
@@ -203,16 +206,17 @@ export const MARKET_KEYWORD_GROUP_META: { key: keyof MarketProfileKeywords; labe
 
 /** Output da extração (lib/anthropic.ts → extractMarketProfile). */
 export interface MarketProfileExtraction {
+  identified: MarketProfileIdentified;
   keywords: MarketProfileKeywords;
-  /** Especialidades inferidas DAS VAGAS — o usuário confirma, nunca digita. */
-  inferredSpecialties: string[];
 }
 
 /** Linha de `market_profiles` já normalizada pro front. */
-export interface MarketProfile extends MarketProfileTarget, MarketProfileExtraction {
+export interface MarketProfile extends MarketProfileIdentified {
   id: string;
-  confirmedSpecialties: string[];
-  origin: MarketProfileOrigin;
+  /** Cargo atual informado pelo usuário (opcional — pode ser string vazia). */
+  currentRole: string;
+  language: HeadlineLanguage;
+  keywords: MarketProfileKeywords;
   createdAt: string;
 }
 

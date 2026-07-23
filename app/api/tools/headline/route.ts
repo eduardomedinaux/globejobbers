@@ -11,22 +11,25 @@ import type {
 } from "@/lib/types";
 
 const MAX_HEADLINE_TEXT_LENGTH = 300;
-const MAX_CONFIRMED_SPECIALTIES = 6;
+
+const VALID_MARKETS: TargetMarket[] = ["us_remote", "canada", "europe", "latam_remote", "other"];
 
 interface RequestBody {
   mode?: "text" | "market";
   text?: string;
   marketProfileId?: unknown;
-  confirmedSpecialties?: unknown;
+  /** Confirmação/edição da tela "Perfil identificado" (cargo, senioridade, mercado). */
+  identified?: unknown;
+  language?: unknown;
 }
 
 /**
  * Headline Optimizer logado. Dois modos:
  *  - "text": cola a headline atual pra avaliar/reescrever (inalterado).
- *  - "market": gera 2 variações a partir do Perfil de Mercado salvo
- *    (metodologia da mentoria — ver PROPOSTA-PERFIL-DE-MERCADO.md). O modo
- *    "builder" (especialidades autodeclaradas) foi removido: era o
- *    anti-padrão da metodologia.
+ *  - "market": gera 2 variações a partir do Perfil de Mercado confirmado
+ *    (metodologia — ver PROPOSTA-PERFIL-DE-MERCADO.md). O usuário pode ter
+ *    EDITADO cargo/senioridade/mercado na confirmação; os valores
+ *    confirmados são persistidos no perfil antes de gerar.
  *
  * Autenticação + limite mensal + persistência em `analyses`. O fluxo
  * completo perfil+headline consome 1 uso (contado aqui, na geração —
@@ -81,13 +84,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Perfil de Mercado não informado." }, { status: 400 });
       }
 
-      const confirmedSpecialties = Array.isArray(body.confirmedSpecialties)
-        ? body.confirmedSpecialties
-            .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-            .map((s) => s.trim().slice(0, 60))
-            .slice(0, MAX_CONFIRMED_SPECIALTIES)
-        : [];
-
       // .eq("user_id") junto do id: perfil de outro usuário é 404, não vaza.
       const { data: row, error: fetchError } = await admin
         .from("market_profiles")
@@ -100,40 +96,59 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Perfil de Mercado não encontrado." }, { status: 404 });
       }
 
-      // Persiste a confirmação (chips) — vale pras próximas ferramentas que
-      // consumirem o perfil, não só pra esta geração.
+      // Valores confirmados (possivelmente editados) na tela "Perfil
+      // identificado". Ausentes → mantém o que a IA identificou.
+      const rawIdentified = (
+        typeof body.identified === "object" && body.identified !== null ? body.identified : {}
+      ) as Record<string, unknown>;
+      const targetRole =
+        typeof rawIdentified.targetRole === "string" && rawIdentified.targetRole.trim()
+          ? rawIdentified.targetRole.trim().slice(0, 120)
+          : (row.target_role as string);
+      const seniority =
+        typeof rawIdentified.seniority === "string" && rawIdentified.seniority.trim()
+          ? rawIdentified.seniority.trim().slice(0, 60)
+          : (row.seniority as string);
+      const targetMarket = VALID_MARKETS.includes(rawIdentified.targetMarket as TargetMarket)
+        ? (rawIdentified.targetMarket as TargetMarket)
+        : (row.target_market as TargetMarket);
+      const language: HeadlineLanguage = body.language === "pt" ? "pt" : "en";
+
+      // Persiste a confirmação — vale pras próximas ferramentas que
+      // consumirem o perfil (CV Tailor, LinkedIn Review…), não só pra esta
+      // geração.
       const { error: updateError } = await admin
         .from("market_profiles")
         .update({
-          confirmed_specialties: confirmedSpecialties,
+          target_role: targetRole,
+          seniority,
+          target_market: targetMarket,
+          language,
           updated_at: new Date().toISOString(),
         })
         .eq("id", marketProfileId);
       if (updateError) {
-        // Não bloqueia a geração — a confirmação segue no prompt desta chamada.
+        // Não bloqueia a geração — os valores confirmados seguem no prompt.
         console.error("MARKET_PROFILE_CONFIRM_FAILED", { marketProfileId, updateError });
       }
 
       const profile: MarketProfile = {
         id: row.id as string,
-        currentRole: row.current_role as string,
-        targetRole: row.target_role as string,
-        targetMarket: row.target_market as TargetMarket,
-        seniority: row.seniority as string,
-        language: (row.language as HeadlineLanguage) ?? "en",
+        currentRole: (row.current_role as string) ?? "",
+        targetRole,
+        seniority,
+        targetMarket,
+        language,
         keywords: row.keywords as MarketProfileKeywords,
-        inferredSpecialties: (row.inferred_specialties as string[]) ?? [],
-        confirmedSpecialties,
-        origin: row.origin as MarketProfile["origin"],
         createdAt: row.created_at as string,
       };
 
-      result = await generateHeadlineFromMarketProfile(profile, confirmedSpecialties);
+      result = await generateHeadlineFromMarketProfile(profile);
       // Sem score aqui: o resultado é um par de variações + cobertura, não
       // uma nota. `analyses.score` é nullable justamente pra isso.
       score = null;
-      inputSummary = `${profile.targetRole} → ${profile.targetMarket}`;
-      inputData = { mode: "market", marketProfileId, confirmedSpecialties };
+      inputSummary = `${targetRole} → ${targetMarket}`;
+      inputData = { mode: "market", marketProfileId, targetRole, seniority, targetMarket, language };
     } else {
       return NextResponse.json({ error: "Modo inválido." }, { status: 400 });
     }
