@@ -12,10 +12,18 @@ import {
   HEADLINE_BUILDER_SYSTEM_PROMPT,
   HEADLINE_TEXT_SYSTEM_PROMPT,
   HEADLINE_TEXT_TOOL,
+  HEADLINE_FROM_MARKET_SYSTEM_PROMPT,
+  HEADLINE_FROM_MARKET_TOOL,
   HEADLINE_VISION_SYSTEM_PROMPT,
   HEADLINE_VISION_TOOL,
   LINKEDIN_REVIEW_SYSTEM_PROMPT,
   LINKEDIN_REVIEW_TOOL,
+  MARKET_PROFILE_SYNTHETIC_SYSTEM_PROMPT,
+  MARKET_PROFILE_SYSTEM_PROMPT,
+  MARKET_PROFILE_TOOL,
+  buildHeadlineFromMarketUserPrompt,
+  buildMarketProfileUserPrompt,
+  buildSyntheticMarketProfileUserPrompt,
 } from "@/lib/prompts";
 import {
   LINKEDIN_REVIEW_CATEGORY_KEYS,
@@ -25,6 +33,13 @@ import {
   type HeadlineBuilderAnswers,
   type LinkedinReviewCategory,
   type LinkedinReviewResult,
+  type MarketHeadlineResult,
+  type MarketHeadlineVariant,
+  type MarketKeyword,
+  type MarketProfile,
+  type MarketProfileExtraction,
+  type MarketProfileKeywords,
+  type MarketProfileTarget,
   type Subscores,
 } from "@/lib/types";
 
@@ -346,4 +361,161 @@ export async function generateHeadlineFromAnswers(
   }
 
   return validateHeadlineAnalysisResult(toolUse.input);
+}
+
+// --- Perfil de Mercado (ver PROPOSTA-PERFIL-DE-MERCADO.md) ---
+
+// Primeiro uso real do roteamento de modelo planejado no FUTURE acima:
+// extração de keywords é tarefa estruturada/barata e bem definida → haiku.
+// A prosa premium (headline) continua no ANALYSIS_MODEL (sonnet).
+const EXTRACTION_MODEL = "claude-haiku-4-5-20251001";
+
+const MAX_KEYWORDS_PER_GROUP = 12;
+const MAX_SPECIALTIES = 6;
+
+function validateMarketKeywords(raw: unknown): MarketKeyword[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      term: typeof item.term === "string" ? item.term.trim().slice(0, 80) : "",
+      count: Math.min(3, Math.max(0, Math.round(Number(item.count)) || 0)),
+      jobs: Array.isArray(item.jobs)
+        ? item.jobs
+            .map((j) => Math.round(Number(j)))
+            .filter((j) => Number.isFinite(j) && j >= 1 && j <= 3)
+            .slice(0, 3)
+        : [],
+    }))
+    .filter((k) => k.term.length > 0)
+    .slice(0, MAX_KEYWORDS_PER_GROUP);
+}
+
+function validateMarketProfileExtraction(raw: unknown): MarketProfileExtraction {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+  const rawKeywords = (obj.keywords as Record<string, unknown>) ?? {};
+
+  const keywords: MarketProfileKeywords = {
+    hardSkills: validateMarketKeywords(rawKeywords.hardSkills),
+    tools: validateMarketKeywords(rawKeywords.tools),
+    responsibilities: validateMarketKeywords(rawKeywords.responsibilities),
+    softSkills: validateMarketKeywords(rawKeywords.softSkills),
+    atsTerms: validateMarketKeywords(rawKeywords.atsTerms),
+  };
+
+  const totalTerms = Object.values(keywords).reduce((sum, list) => sum + list.length, 0);
+  if (totalTerms === 0) {
+    // Vagas ilegíveis/vazias não devem virar perfil-lixo — mesmo princípio
+    // do PDF ilegível no fluxo público.
+    throw new Error("Nenhuma keyword extraída das vagas.");
+  }
+
+  const inferredSpecialties = Array.isArray(obj.inferredSpecialties)
+    ? obj.inferredSpecialties
+        .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        .map((s) => s.trim().slice(0, 60))
+        .slice(0, MAX_SPECIALTIES)
+    : [];
+
+  return { keywords, inferredSpecialties };
+}
+
+/**
+ * Extrai o Perfil de Mercado de 1-3 vagas (ou estima, quando jobs === null,
+ * no fallback "não tenho vagas"). temperature 0: mesmas vagas → mesmo
+ * perfil (mesmo princípio de reprodutibilidade do score).
+ */
+export async function extractMarketProfile(
+  target: MarketProfileTarget,
+  jobs: string[] | null,
+): Promise<MarketProfileExtraction> {
+  const synthetic = jobs === null || jobs.length === 0;
+  const response = await anthropic.messages.create({
+    model: EXTRACTION_MODEL,
+    max_tokens: 2500,
+    temperature: 0,
+    system: synthetic ? MARKET_PROFILE_SYNTHETIC_SYSTEM_PROMPT : MARKET_PROFILE_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: synthetic
+          ? buildSyntheticMarketProfileUserPrompt(target)
+          : buildMarketProfileUserPrompt(target, jobs),
+      },
+    ],
+    tools: [MARKET_PROFILE_TOOL],
+    tool_choice: { type: "tool", name: MARKET_PROFILE_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateMarketProfileExtraction(toolUse.input);
+}
+
+function validateMarketHeadlineResult(raw: unknown, marketProfileId: string): MarketHeadlineResult {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+
+  const toStringArray = (value: unknown, max: number): string[] =>
+    Array.isArray(value)
+      ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0).slice(0, max)
+      : [];
+
+  const variants: MarketHeadlineVariant[] = (Array.isArray(obj.variants) ? obj.variants : [])
+    .filter((v): v is Record<string, unknown> => typeof v === "object" && v !== null)
+    .map((v) => ({
+      style: v.style === "fluid" ? ("fluid" as const) : ("keyword_dense" as const),
+      text: (typeof v.text === "string" ? v.text : "").slice(0, MAX_HEADLINE_LENGTH),
+      keywordsCovered: toStringArray(v.keywordsCovered, 15),
+    }))
+    .filter((v) => v.text.length > 0)
+    .slice(0, 2);
+
+  if (variants.length === 0) {
+    throw new Error("A IA não retornou nenhuma variação de headline.");
+  }
+
+  return {
+    kind: "market",
+    marketProfileId,
+    variants,
+    keywordsLeftOut: toStringArray(obj.keywordsLeftOut, 12),
+    rationale: (typeof obj.rationale === "string" ? obj.rationale : "").slice(0, 600),
+  };
+}
+
+/**
+ * Gera as 2 variações de headline a partir do Perfil de Mercado salvo +
+ * especialidades confirmadas. Prosa premium → ANALYSIS_MODEL (sonnet).
+ */
+export async function generateHeadlineFromMarketProfile(
+  profile: MarketProfile,
+  confirmedSpecialties: string[],
+): Promise<MarketHeadlineResult> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 1200,
+    temperature: 0,
+    system: HEADLINE_FROM_MARKET_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildHeadlineFromMarketUserPrompt(profile, confirmedSpecialties) },
+    ],
+    tools: [HEADLINE_FROM_MARKET_TOOL],
+    tool_choice: { type: "tool", name: HEADLINE_FROM_MARKET_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateMarketHeadlineResult(toolUse.input, profile.id);
 }

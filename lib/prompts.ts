@@ -1,5 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { HeadlineBuilderAnswers } from "@/lib/types";
+import type {
+  HeadlineBuilderAnswers,
+  MarketProfile,
+  MarketProfileTarget,
+} from "@/lib/types";
 
 // --- LinkedIn Review (Fase 2) ---
 //
@@ -531,5 +535,273 @@ export const ANALYSIS_TOOL: Anthropic.Tool = {
       },
     },
     required: ["score", "subscores", "headline", "keywordHighlights"],
+  },
+};
+
+// --- Perfil de Mercado (ver PROPOSTA-PERFIL-DE-MERCADO.md) ---
+//
+// Metodologia: a headline é construída de fora pra dentro — parte das vagas
+// que o candidato quer, não do que ele declara sobre si. A extração roda
+// ANTES de qualquer geração, com temperature 0 (mesmo princípio de
+// reprodutibilidade do score: mesmas vagas → mesmo perfil).
+
+const TARGET_MARKET_PROMPT_LABELS: Record<MarketProfileTarget["targetMarket"], string> = {
+  us_remote: "Estados Unidos (remoto)",
+  canada: "Canadá",
+  europe: "Europa",
+  latam_remote: "América Latina (remoto, contratação internacional)",
+  other: "Outro mercado internacional",
+};
+
+export const MARKET_PROFILE_SYSTEM_PROMPT = `Você é um sourcer/recrutador técnico sênior especializado em como recrutadores
+internacionais BUSCAM candidatos (LinkedIn Recruiter, ATS, boolean search).
+
+O usuário quer migrar para vagas internacionais e vai fornecer de 1 a 3
+descrições de vagas reais que ele deseja conquistar. Sua tarefa é construir o
+"Perfil de Mercado" desse alvo — o mapa das palavras-chave que os recrutadores
+desse mercado usam para encontrar candidatos.
+
+Regras:
+
+1. Extraia os termos EXCLUSIVAMENTE das descrições de vaga fornecidas. Não
+   invente termos que não estejam nas vagas (exceção: campo "atsTerms" pode
+   normalizar variações óbvias, ex.: "PM" → "Product Manager").
+2. Classifique cada termo em UM dos grupos: hardSkills (competências
+   técnicas), tools (ferramentas/tecnologias nomeadas), responsibilities
+   (responsabilidades recorrentes), softSkills, atsTerms (termos exatos que
+   sistemas ATS e buscas booleanas usam, incluindo variações de título).
+3. Para cada termo, informe "count" (em quantas vagas aparece) e "jobs"
+   (índices 1-based das vagas onde aparece). Conte semanticamente: "design
+   systems" e "sistema de design" são o mesmo termo.
+4. Termos presentes em 2+ vagas são os mais valiosos — seja rigoroso na
+   contagem, é ela que ordena o perfil.
+5. Mantenha os termos no idioma da vaga (normalmente inglês) — é assim que o
+   recrutador busca.
+6. Infira de 3 a 6 "inferredSpecialties": as especialidades que ESSAS VAGAS
+   pedem (não o que o candidato diz ser). Curtas (2-4 palavras), no idioma
+   das vagas.
+7. Máximo de 12 termos por grupo, ordenados por count decrescente e depois
+   por importância para busca de recrutador.
+
+Responda SEMPRE chamando a ferramenta "submit_market_profile". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildMarketProfileUserPrompt(target: MarketProfileTarget, jobs: string[]): string {
+  const jobBlocks = jobs
+    .map((text, i) => `--- VAGA ${i + 1} ---\n${text}`)
+    .join("\n\n");
+
+  return `Alvo do candidato:
+- Cargo/área atual: ${target.currentRole}
+- Cargo/área desejada: ${target.targetRole}
+- Mercado-alvo: ${TARGET_MARKET_PROMPT_LABELS[target.targetMarket]}
+- Senioridade: ${target.seniority}
+
+Descrições das vagas desejadas (${jobs.length}):
+
+${jobBlocks}
+
+Construa o Perfil de Mercado e chame "submit_market_profile".`;
+}
+
+/**
+ * Fallback "não tenho vagas agora": perfil ESTIMADO a partir do conhecimento
+ * do modelo sobre o cargo+mercado+senioridade. Fidelidade menor — a UI
+ * rotula como estimado e incentiva colar vagas reais. `count`/`jobs` aqui
+ * expressam apenas relevância (count 1, jobs []).
+ */
+export const MARKET_PROFILE_SYNTHETIC_SYSTEM_PROMPT = `Você é um sourcer/recrutador técnico sênior especializado em como recrutadores
+internacionais BUSCAM candidatos (LinkedIn Recruiter, ATS, boolean search).
+
+O usuário quer migrar para vagas internacionais mas NÃO tem descrições de
+vagas em mãos. Construa um "Perfil de Mercado" ESTIMADO para o cargo,
+mercado e senioridade informados, com base no que vagas típicas desse alvo
+pedem hoje.
+
+Regras:
+
+1. Grupos: hardSkills, tools, responsibilities, softSkills, atsTerms
+   (incluindo variações de título que recrutadores buscam).
+2. Use "count": 1 e "jobs": [] em todos os termos (não há vagas reais).
+3. Termos em inglês (é assim que o recrutador busca), a menos que o mercado
+   seja explicitamente lusófono.
+4. Infira de 3 a 6 "inferredSpecialties" típicas desse alvo, curtas (2-4
+   palavras).
+5. Máximo de 12 termos por grupo, ordenados por importância para busca de
+   recrutador. Seja específico do cargo/senioridade — não genérico.
+
+Responda SEMPRE chamando a ferramenta "submit_market_profile". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildSyntheticMarketProfileUserPrompt(target: MarketProfileTarget): string {
+  return `Alvo do candidato (sem vagas em mãos — perfil estimado):
+- Cargo/área atual: ${target.currentRole}
+- Cargo/área desejada: ${target.targetRole}
+- Mercado-alvo: ${TARGET_MARKET_PROMPT_LABELS[target.targetMarket]}
+- Senioridade: ${target.seniority}
+
+Construa o Perfil de Mercado estimado e chame "submit_market_profile".`;
+}
+
+const marketKeywordArray = (description: string) => ({
+  type: "array" as const,
+  maxItems: 12,
+  description,
+  items: {
+    type: "object" as const,
+    properties: {
+      term: { type: "string" as const },
+      count: { type: "integer" as const, minimum: 0, maximum: 3 },
+      jobs: { type: "array" as const, items: { type: "integer" as const, minimum: 1, maximum: 3 } },
+    },
+    required: ["term", "count", "jobs"],
+  },
+});
+
+export const MARKET_PROFILE_TOOL: Anthropic.Tool = {
+  name: "submit_market_profile",
+  description:
+    "Envia o Perfil de Mercado: keywords agrupadas (com recorrência entre as vagas) e especialidades inferidas.",
+  input_schema: {
+    type: "object",
+    properties: {
+      keywords: {
+        type: "object",
+        properties: {
+          hardSkills: marketKeywordArray("Competências técnicas pedidas nas vagas."),
+          tools: marketKeywordArray("Ferramentas e tecnologias nomeadas nas vagas."),
+          responsibilities: marketKeywordArray("Responsabilidades recorrentes nas vagas."),
+          softSkills: marketKeywordArray("Soft skills pedidas nas vagas."),
+          atsTerms: marketKeywordArray("Termos exatos de ATS/busca booleana, incluindo variações de título."),
+        },
+        required: ["hardSkills", "tools", "responsibilities", "softSkills", "atsTerms"],
+      },
+      inferredSpecialties: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 3,
+        maxItems: 6,
+        description: "Especialidades que as vagas pedem (2-4 palavras cada), para o usuário confirmar.",
+      },
+    },
+    required: ["keywords", "inferredSpecialties"],
+  },
+};
+
+// --- Headline a partir do Perfil de Mercado ---
+//
+// Objetivo NÃO é uma headline bonita: é maximizar a chance de o perfil
+// aparecer na busca de um recrutador internacional. Duas variações com
+// trade-off explícito (densa em keywords vs mais fluida) e cobertura
+// explicável — cada keyword usada tem origem rastreável nas vagas.
+
+export const HEADLINE_FROM_MARKET_SYSTEM_PROMPT = `Você é um recrutador técnico sênior especializado em colocar profissionais
+brasileiros em vagas remotas internacionais pagas em dólar. Você sabe
+exatamente como recrutadores buscam no LinkedIn Recruiter: por títulos,
+skills e termos exatos — a headline é o campo com maior peso na busca.
+
+Você vai receber o Perfil de Mercado do usuário (keywords extraídas das
+vagas que ele quer, com recorrência) e as especialidades que ele confirmou.
+Gere DUAS variações de headline:
+
+1. "keyword_dense": maximiza encontrabilidade. Prioriza o título desejado +
+   termos de maior recorrência (count alto) + especialidades confirmadas,
+   separados por " | ". Densa, mas legível — não é keyword stuffing cego.
+2. "fluid": mais natural e narrativa, mantendo as 3-4 keywords mais
+   críticas. Para quem prefere soar menos "otimizado".
+
+Regras para AMBAS:
+- Máximo de 220 caracteres (limite do LinkedIn).
+- No idioma pedido. Termos técnicos/ferramentas permanecem em inglês mesmo
+  em headline em português (é assim que se busca).
+- Priorize SEMPRE termos com maior "count" (recorrência entre as vagas) —
+  são os que mais aparecem em buscas desse mercado.
+- Use o cargo DESEJADO como âncora do título (é a vaga que ele quer
+  aparecer na busca), desde que defensável pela senioridade informada.
+- NÃO invente conquistas, números, empresas ou certificações — o input aqui
+  são as vagas e as especialidades confirmadas, nada mais.
+- Sem buzzwords vazias ("passionate", "results-driven", "synergy").
+
+Para cada variação, liste em "keywordsCovered" os termos do Perfil de
+Mercado efetivamente usados. Em "keywordsLeftOut", liste os termos críticos
+(count 2+, ou os mais importantes do perfil) que NÃO couberam em nenhuma
+variação — eles vão para o About/Experiências. Em "rationale", explique em
+1-2 frases (pt-BR) as escolhas.
+
+Responda SEMPRE chamando a ferramenta "submit_market_headline". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildHeadlineFromMarketUserPrompt(
+  profile: MarketProfile,
+  confirmedSpecialties: string[],
+): string {
+  const groups = (
+    [
+      ["Competências técnicas", profile.keywords.hardSkills],
+      ["Ferramentas & tecnologias", profile.keywords.tools],
+      ["Responsabilidades", profile.keywords.responsibilities],
+      ["Soft skills", profile.keywords.softSkills],
+      ["Termos ATS", profile.keywords.atsTerms],
+    ] as const
+  )
+    .map(
+      ([label, list]) =>
+        `${label}: ${list.map((k) => `${k.term} (${k.count}x)`).join(", ") || "—"}`,
+    )
+    .join("\n");
+
+  return `Alvo:
+- Cargo/área atual: ${profile.currentRole}
+- Cargo/área desejada: ${profile.targetRole}
+- Mercado-alvo: ${TARGET_MARKET_PROMPT_LABELS[profile.targetMarket]}
+- Senioridade: ${profile.seniority}
+- Idioma da headline: ${profile.language === "pt" ? "português (termos técnicos em inglês)" : "inglês"}
+- Origem do perfil: ${profile.origin === "synthetic" ? "estimado pelo modelo (sem vagas reais)" : `extraído de vagas reais`}
+
+Perfil de Mercado (termo (recorrência entre as vagas)):
+${groups}
+
+Especialidades CONFIRMADAS pelo usuário:
+${confirmedSpecialties.map((s) => `- ${s}`).join("\n") || "- (nenhuma confirmada — use as mais recorrentes do perfil)"}
+
+Gere as duas variações e chame "submit_market_headline".`;
+}
+
+export const HEADLINE_FROM_MARKET_TOOL: Anthropic.Tool = {
+  name: "submit_market_headline",
+  description:
+    "Envia as duas variações de headline geradas a partir do Perfil de Mercado, com cobertura de keywords explicável.",
+  input_schema: {
+    type: "object",
+    properties: {
+      variants: {
+        type: "array",
+        minItems: 2,
+        maxItems: 2,
+        items: {
+          type: "object",
+          properties: {
+            style: { type: "string", enum: ["keyword_dense", "fluid"] },
+            text: { type: "string", description: "A headline, máximo 220 caracteres." },
+            keywordsCovered: {
+              type: "array",
+              items: { type: "string" },
+              description: "Termos do Perfil de Mercado usados nesta variação.",
+            },
+          },
+          required: ["style", "text", "keywordsCovered"],
+        },
+      },
+      keywordsLeftOut: {
+        type: "array",
+        items: { type: "string" },
+        description: "Termos críticos do perfil que não couberam (vão pro About/Experiências).",
+      },
+      rationale: {
+        type: "string",
+        description: "1-2 frases em pt-BR explicando as escolhas.",
+      },
+    },
+    required: ["variants", "keywordsLeftOut", "rationale"],
   },
 };

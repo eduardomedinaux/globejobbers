@@ -90,3 +90,47 @@ create table if not exists public.waitlist (
 
 alter table public.waitlist enable row level security;
 grant insert, select on public.waitlist to service_role;
+
+-- ============================================================================
+-- Perfil de Mercado (ver PROPOSTA-PERFIL-DE-MERCADO.md)
+-- ============================================================================
+--
+-- Ativo durável (não evento): criado no fluxo de headline a partir de 1-3
+-- vagas desejadas, consumido por N ferramentas (headline hoje; CV Tailor,
+-- LinkedIn Review, About, Experiências no futuro). Por isso tabela própria,
+-- fora de `analyses`. O "perfil ativo" do usuário é o mais recente
+-- (created_at desc) — gestão de múltiplos perfis é UI de fase posterior.
+
+create table if not exists public.market_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  -- Alvo (Passo 1 do wizard)
+  current_role text not null,
+  target_role text not null,
+  target_market text not null check (
+    target_market in ('us_remote', 'canada', 'europe', 'latam_remote', 'other')
+  ),
+  seniority text not null,
+  language text not null default 'en' check (language in ('en', 'pt')),
+  -- Output da extração (temperature 0) — formato em lib/types.ts
+  -- (MarketProfileKeywords: cada termo com count e índices das vagas)
+  keywords jsonb not null,
+  inferred_specialties text[] not null default '{}',
+  confirmed_specialties text[] not null default '{}',
+  -- Proveniência: 'jobs' = extraído de vagas reais; 'synthetic' = estimado
+  -- pelo modelo (fallback "não tenho vagas", sempre rotulado na UI)
+  origin text not null check (origin in ('jobs', 'synthetic')),
+  -- Texto das vagas (truncado a ~15k chars cada) pra auditoria/reprocesso
+  -- sem re-pedir ao usuário. Descrições públicas, sem dado sensível.
+  source_jobs jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists market_profiles_user_idx
+  on public.market_profiles (user_id, created_at desc);
+
+-- Mesmo padrão das demais tabelas: RLS habilitada sem policies, acesso
+-- exclusivamente via service role em Route Handlers.
+alter table public.market_profiles enable row level security;
+grant select, insert, update on public.market_profiles to service_role;

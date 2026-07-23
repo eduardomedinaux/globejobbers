@@ -7,8 +7,14 @@ import { ScoreMiniCard } from "@/components/score-mini-card";
 import { HeadlineCard } from "@/components/headline-card";
 import { CvTailorResultView } from "@/components/cv-tailor-result";
 import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
+import { HeadlineMarketResultView } from "@/components/market-profile/headline-market-result";
 import { TOOL_TYPE_LABELS } from "@/lib/types";
-import type { CvTailorResult, HeadlineAnalysisResult, LinkedinReviewResult } from "@/lib/types";
+import type {
+  CvTailorResult,
+  HeadlineAnalysisResult,
+  LinkedinReviewResult,
+  MarketHeadlineResult,
+} from "@/lib/types";
 
 export default async function HistoryDetailPage({ params }: { params: { id: string } }) {
   const user = await getCurrentUser();
@@ -40,7 +46,13 @@ export default async function HistoryDetailPage({ params }: { params: { id: stri
 
       {analysis.tool_type === "headline" &&
         (() => {
-          const result = analysis.output_data as HeadlineAnalysisResult;
+          const output = analysis.output_data as HeadlineAnalysisResult | MarketHeadlineResult;
+          // Resultados via Perfil de Mercado têm shape próprio (kind:
+          // "market") — os legados (text/builder) não têm `kind`.
+          if ("kind" in output && output.kind === "market") {
+            return <HeadlineMarketResultView result={output} />;
+          }
+          const result = output as HeadlineAnalysisResult;
           return (
             <div className="flex flex-col gap-4">
               <ScoreMiniCard score={result.headlineScore} />

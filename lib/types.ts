@@ -144,3 +144,103 @@ const LINKEDIN_REVIEW_CATEGORY_LABELS: Record<LinkedinReviewCategoryKey, string>
 /** Metadados pra renderizar as categorias na ordem certa (ver components/linkedin-review-result.tsx). */
 export const LINKEDIN_REVIEW_CATEGORY_META: { key: LinkedinReviewCategoryKey; label: string }[] =
   LINKEDIN_REVIEW_CATEGORY_KEYS.map((key) => ({ key, label: LINKEDIN_REVIEW_CATEGORY_LABELS[key] }));
+
+// --- Perfil de Mercado (ativo central — ver PROPOSTA-PERFIL-DE-MERCADO.md) ---
+//
+// Criado a partir de 1-3 vagas desejadas (origin "jobs") ou estimado pelo
+// modelo quando o usuário não tem vagas em mãos (origin "synthetic", sempre
+// sinalizado na UI). Consumido pela geração de headline hoje; CV Tailor,
+// LinkedIn Review, About e Experiências consomem o mesmo perfil no futuro.
+
+export type MarketProfileOrigin = "jobs" | "synthetic";
+
+export type TargetMarket = "us_remote" | "canada" | "europe" | "latam_remote" | "other";
+
+export const TARGET_MARKET_OPTIONS: { value: TargetMarket; label: string }[] = [
+  { value: "us_remote", label: "US Remote" },
+  { value: "canada", label: "Canadá" },
+  { value: "europe", label: "Europa" },
+  { value: "latam_remote", label: "LatAm Remote" },
+  { value: "other", label: "Outro" },
+];
+
+export type HeadlineLanguage = "en" | "pt";
+
+/** Alvo de carreira informado no Passo 1 do wizard. */
+export interface MarketProfileTarget {
+  currentRole: string;
+  targetRole: string;
+  targetMarket: TargetMarket;
+  seniority: string;
+  language: HeadlineLanguage;
+}
+
+/** Um termo extraído das vagas, com a prova da recorrência. */
+export interface MarketKeyword {
+  term: string;
+  /** Em quantas das vagas fornecidas o termo aparece (1-3). */
+  count: number;
+  /** Índices 1-based das vagas onde o termo aparece. */
+  jobs: number[];
+}
+
+export interface MarketProfileKeywords {
+  hardSkills: MarketKeyword[];
+  tools: MarketKeyword[];
+  responsibilities: MarketKeyword[];
+  softSkills: MarketKeyword[];
+  atsTerms: MarketKeyword[];
+}
+
+/** Única fonte da ordem/labels dos grupos de keywords na UI. */
+export const MARKET_KEYWORD_GROUP_META: { key: keyof MarketProfileKeywords; label: string }[] = [
+  { key: "hardSkills", label: "Competências técnicas" },
+  { key: "tools", label: "Ferramentas & tecnologias" },
+  { key: "responsibilities", label: "Responsabilidades" },
+  { key: "softSkills", label: "Soft skills" },
+  { key: "atsTerms", label: "Termos ATS" },
+];
+
+/** Output da extração (lib/anthropic.ts → extractMarketProfile). */
+export interface MarketProfileExtraction {
+  keywords: MarketProfileKeywords;
+  /** Especialidades inferidas DAS VAGAS — o usuário confirma, nunca digita. */
+  inferredSpecialties: string[];
+}
+
+/** Linha de `market_profiles` já normalizada pro front. */
+export interface MarketProfile extends MarketProfileTarget, MarketProfileExtraction {
+  id: string;
+  confirmedSpecialties: string[];
+  origin: MarketProfileOrigin;
+  createdAt: string;
+}
+
+/** Uma das 2 variações de headline geradas a partir do perfil. */
+export interface MarketHeadlineVariant {
+  /** "keyword_dense": prioriza encontrabilidade; "fluid": mais natural. */
+  style: "keyword_dense" | "fluid";
+  text: string;
+  /** Termos do Perfil de Mercado cobertos por esta variação. */
+  keywordsCovered: string[];
+}
+
+export const MARKET_HEADLINE_STYLE_LABELS: Record<MarketHeadlineVariant["style"], string> = {
+  keyword_dense: "Densa em keywords",
+  fluid: "Mais fluida",
+};
+
+/**
+ * Resultado da geração via Perfil de Mercado. `kind` distingue do
+ * HeadlineAnalysisResult legado em `analyses.output_data` (ver
+ * app/(app)/history/[id]/page.tsx).
+ */
+export interface MarketHeadlineResult {
+  kind: "market";
+  marketProfileId: string;
+  variants: MarketHeadlineVariant[];
+  /** Keywords críticas que NÃO couberam — vão pro About/Experiências. */
+  keywordsLeftOut: string[];
+  /** 1-2 frases explicando as escolhas (em pt-BR). */
+  rationale: string;
+}

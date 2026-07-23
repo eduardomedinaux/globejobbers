@@ -38,7 +38,12 @@ export type AnalyticsEvent =
   | "linkedin_review_started"
   | "linkedin_review_completed"
   | "linkedin_review_failed"
-  | "linkedin_review_tab_changed";
+  | "linkedin_review_tab_changed"
+  // Perfil de Mercado (ver PROPOSTA-PERFIL-DE-MERCADO.md)
+  | "market_profile_started"
+  | "market_profile_created"
+  | "market_profile_failed"
+  | "market_headline_generated";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

@@ -1,62 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { generateHeadlineFromAnswers, generateHeadlineFromText } from "@/lib/anthropic";
+import { generateHeadlineFromMarketProfile, generateHeadlineFromText } from "@/lib/anthropic";
 import { getUsageStatus } from "@/lib/usage";
-import type { HeadlineBuilderAnswers } from "@/lib/types";
+import type {
+  HeadlineLanguage,
+  MarketProfile,
+  MarketProfileKeywords,
+  TargetMarket,
+} from "@/lib/types";
 
 const MAX_HEADLINE_TEXT_LENGTH = 300;
+const MAX_CONFIRMED_SPECIALTIES = 6;
 
 interface RequestBody {
-  mode?: "text" | "builder";
+  mode?: "text" | "market";
   text?: string;
-  answers?: unknown;
-}
-
-function validateBuilderAnswers(raw: unknown): HeadlineBuilderAnswers | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const obj = raw as Record<string, unknown>;
-
-  const currentRole = typeof obj.currentRole === "string" ? obj.currentRole.trim() : "";
-  const specialty = typeof obj.specialty === "string" ? obj.specialty.trim() : "";
-  const targetIndustry = typeof obj.targetIndustry === "string" ? obj.targetIndustry.trim() : "";
-  const notableAchievement =
-    typeof obj.notableAchievement === "string" ? obj.notableAchievement.trim() : "";
-  const seniorityLevel = typeof obj.seniorityLevel === "string" ? obj.seniorityLevel.trim() : "";
-  const yearsOfExperience = Number(obj.yearsOfExperience);
-  const keySkills = Array.isArray(obj.keySkills)
-    ? obj.keySkills.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-    : [];
-
-  if (
-    !currentRole ||
-    !specialty ||
-    !targetIndustry ||
-    !notableAchievement ||
-    !seniorityLevel ||
-    !Number.isFinite(yearsOfExperience) ||
-    yearsOfExperience < 0 ||
-    keySkills.length === 0
-  ) {
-    return null;
-  }
-
-  return {
-    currentRole,
-    specialty,
-    targetIndustry,
-    notableAchievement,
-    seniorityLevel,
-    yearsOfExperience,
-    keySkills,
-  };
+  marketProfileId?: unknown;
+  confirmedSpecialties?: unknown;
 }
 
 /**
- * Headline Optimizer logado. Dois modos (ver lib/prompts.ts): "text" (cola
- * a headline atual) e "builder" (perguntas guiadas, sem headline pronta).
- * Autenticação + limite mensal + persistência em `analyses` — diferente das
- * versões anônimas em /api/analyze e /api/analyze-headline.
+ * Headline Optimizer logado. Dois modos:
+ *  - "text": cola a headline atual pra avaliar/reescrever (inalterado).
+ *  - "market": gera 2 variações a partir do Perfil de Mercado salvo
+ *    (metodologia da mentoria — ver PROPOSTA-PERFIL-DE-MERCADO.md). O modo
+ *    "builder" (especialidades autodeclaradas) foi removido: era o
+ *    anti-padrão da metodologia.
+ *
+ * Autenticação + limite mensal + persistência em `analyses`. O fluxo
+ * completo perfil+headline consome 1 uso (contado aqui, na geração —
+ * /api/market-profile não grava em analyses).
  */
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -83,7 +57,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
+  const admin = getSupabaseAdmin();
   let result;
+  let score: number | null;
   let inputSummary: string;
   let inputData: Record<string, unknown>;
 
@@ -95,19 +71,69 @@ export async function POST(request: NextRequest) {
       }
       const truncated = text.slice(0, MAX_HEADLINE_TEXT_LENGTH);
       result = await generateHeadlineFromText(truncated);
+      score = result.headlineScore;
       inputSummary = truncated;
       inputData = { mode: "text", text: truncated };
-    } else if (body.mode === "builder") {
-      const answers = validateBuilderAnswers(body.answers);
-      if (!answers) {
-        return NextResponse.json(
-          { error: "Preencha todas as perguntas do formulário." },
-          { status: 400 },
-        );
+    } else if (body.mode === "market") {
+      const marketProfileId =
+        typeof body.marketProfileId === "string" ? body.marketProfileId : "";
+      if (!marketProfileId) {
+        return NextResponse.json({ error: "Perfil de Mercado não informado." }, { status: 400 });
       }
-      result = await generateHeadlineFromAnswers(answers);
-      inputSummary = `${answers.currentRole} — ${answers.specialty}`;
-      inputData = { mode: "builder", answers };
+
+      const confirmedSpecialties = Array.isArray(body.confirmedSpecialties)
+        ? body.confirmedSpecialties
+            .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+            .map((s) => s.trim().slice(0, 60))
+            .slice(0, MAX_CONFIRMED_SPECIALTIES)
+        : [];
+
+      // .eq("user_id") junto do id: perfil de outro usuário é 404, não vaza.
+      const { data: row, error: fetchError } = await admin
+        .from("market_profiles")
+        .select()
+        .eq("id", marketProfileId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (fetchError || !row) {
+        return NextResponse.json({ error: "Perfil de Mercado não encontrado." }, { status: 404 });
+      }
+
+      // Persiste a confirmação (chips) — vale pras próximas ferramentas que
+      // consumirem o perfil, não só pra esta geração.
+      const { error: updateError } = await admin
+        .from("market_profiles")
+        .update({
+          confirmed_specialties: confirmedSpecialties,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", marketProfileId);
+      if (updateError) {
+        // Não bloqueia a geração — a confirmação segue no prompt desta chamada.
+        console.error("MARKET_PROFILE_CONFIRM_FAILED", { marketProfileId, updateError });
+      }
+
+      const profile: MarketProfile = {
+        id: row.id as string,
+        currentRole: row.current_role as string,
+        targetRole: row.target_role as string,
+        targetMarket: row.target_market as TargetMarket,
+        seniority: row.seniority as string,
+        language: (row.language as HeadlineLanguage) ?? "en",
+        keywords: row.keywords as MarketProfileKeywords,
+        inferredSpecialties: (row.inferred_specialties as string[]) ?? [],
+        confirmedSpecialties,
+        origin: row.origin as MarketProfile["origin"],
+        createdAt: row.created_at as string,
+      };
+
+      result = await generateHeadlineFromMarketProfile(profile, confirmedSpecialties);
+      // Sem score aqui: o resultado é um par de variações + cobertura, não
+      // uma nota. `analyses.score` é nullable justamente pra isso.
+      score = null;
+      inputSummary = `${profile.targetRole} → ${profile.targetMarket}`;
+      inputData = { mode: "market", marketProfileId, confirmedSpecialties };
     } else {
       return NextResponse.json({ error: "Modo inválido." }, { status: 400 });
     }
@@ -119,14 +145,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const admin = getSupabaseAdmin();
   const { error: insertError } = await admin.from("analyses").insert({
     user_id: user.id,
     tool_type: "headline",
     input_summary: inputSummary,
     input_data: inputData,
     output_data: result,
-    score: result.headlineScore,
+    score,
   });
 
   if (insertError) {
