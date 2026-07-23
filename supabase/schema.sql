@@ -107,7 +107,7 @@ grant insert, select on public.waitlist to service_role;
 --
 -- MIGRAÇÃO: se você criou a tabela na versão anterior (com current_role NOT
 -- NULL e colunas de especialidades), rode:
---   alter table public.market_profiles alter column current_role drop not null;
+--   alter table public.market_profiles alter column "current_role" drop not null;
 --   alter table public.market_profiles drop column if exists inferred_specialties;
 --   alter table public.market_profiles drop column if exists confirmed_specialties;
 --   alter table public.market_profiles drop column if exists origin;
@@ -115,8 +115,9 @@ grant insert, select on public.waitlist to service_role;
 create table if not exists public.market_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  -- Único input declarado pelo usuário (opcional)
-  current_role text,
+  -- Único input declarado pelo usuário (opcional). Aspas obrigatórias:
+  -- CURRENT_ROLE é palavra reservada do PostgreSQL.
+  "current_role" text,
   -- Identificados pela IA lendo as vagas; confirmados/editados pelo usuário
   target_role text not null,
   target_market text not null check (
