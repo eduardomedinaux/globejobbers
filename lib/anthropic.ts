@@ -320,14 +320,19 @@ function validateLinkedinReviewResult(raw: unknown): LinkedinReviewResult {
 /**
  * LinkedIn Review: análise completa do perfil em 8 categorias (ver
  * lib/prompts.ts). Prosa premium → claude-sonnet-4-6, chamada única.
+ * Com marketProfile, keywords/posicionamento são avaliados CONTRA o alvo
+ * do usuário (as vagas dele) em vez do genérico da área.
  */
-export async function generateLinkedinReview(profileText: string): Promise<LinkedinReviewResult> {
+export async function generateLinkedinReview(
+  profileText: string,
+  marketProfile?: MarketProfile | null,
+): Promise<LinkedinReviewResult> {
   const response = await anthropic.messages.create({
     model: ANALYSIS_MODEL,
     max_tokens: 3000,
     temperature: 0,
     system: LINKEDIN_REVIEW_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildLinkedinReviewUserPrompt(profileText) }],
+    messages: [{ role: "user", content: buildLinkedinReviewUserPrompt(profileText, marketProfile) }],
     tools: [LINKEDIN_REVIEW_TOOL],
     tool_choice: { type: "tool", name: LINKEDIN_REVIEW_TOOL.name },
   });

@@ -43,16 +43,55 @@ trecho de texto claro pra reescrever):
 "overallScore" (0-100) é uma síntese ponderada das 8 categorias, refletindo
 a prontidão geral do perfil pro mercado internacional — não é média simples.
 
+Se o prompt incluir um "PERFIL DE MERCADO DO USUÁRIO" (o alvo dele, extraído
+das vagas que ele quer conquistar), a análise deixa de ser genérica: avalie
+"keywords" e "internationalPositioning" CONTRA esse alvo específico — quais
+termos do Perfil de Mercado aparecem (ou faltam) no perfil do LinkedIn, e se
+o posicionamento conversa com aquele cargo/mercado. Cite termos concretos do
+Perfil de Mercado nos diagnósticos e recomendações (ex.: "'Design Systems'
+aparece em 3 das vagas do seu alvo e não está no seu perfil"). As demais
+categorias também podem referenciar o alvo quando fizer o diagnóstico mais
+específico. Sem o Perfil de Mercado, avalie no modo genérico da área do
+candidato.
+
 Responda SEMPRE chamando a ferramenta "submit_linkedin_review". Não escreva
 texto fora da chamada da ferramenta.`;
 
-export function buildLinkedinReviewUserPrompt(profileText: string): string {
+export function buildLinkedinReviewUserPrompt(
+  profileText: string,
+  marketProfile?: MarketProfile | null,
+): string {
+  const marketBlock = marketProfile
+    ? `
+
+PERFIL DE MERCADO DO USUÁRIO (alvo extraído das vagas que ele quer conquistar):
+- Cargo-alvo: ${marketProfile.targetRole}
+- Senioridade: ${marketProfile.seniority}
+- Mercado: ${marketProfile.targetMarket}
+Keywords do alvo (termo (recorrência entre as vagas)):
+${(
+        [
+          ["Hard skills", marketProfile.keywords.hardSkills],
+          ["Soft skills", marketProfile.keywords.softSkills],
+          ["Ferramentas & tecnologias", marketProfile.keywords.tools],
+          ["Responsabilidades", marketProfile.keywords.responsibilities],
+          ["Termos ATS", marketProfile.keywords.atsTerms],
+        ] as const
+      )
+        .map(
+          ([label, list]) =>
+            `${label}: ${list.map((k) => `${k.term} (${k.count}x)`).join(", ") || "—"}`,
+        )
+        .join("\n")}
+`
+    : "";
+
   return `Perfil de LinkedIn para análise (texto colado ou extraído de PDF):
 
 """
 ${profileText}
 """
-
+${marketBlock}
 Analise as 8 categorias e chame "submit_linkedin_review" com o resultado.`;
 }
 

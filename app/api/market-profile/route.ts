@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { extractMarketProfile } from "@/lib/anthropic";
+import { getActiveMarketProfile, rowToMarketProfile } from "@/lib/market-profile";
 import { getUsageStatus } from "@/lib/usage";
-import type {
-  HeadlineLanguage,
-  MarketProfile,
-  MarketProfileKeywords,
-  TargetMarket,
-} from "@/lib/types";
 
 // Vaga colada precisa parecer uma descrição real (mesmo princípio do PDF
 // ilegível: input ruim não vira perfil-lixo silenciosamente).
@@ -21,20 +16,6 @@ interface RequestBody {
   currentRole?: unknown;
   /** 1-5 descrições de vaga (coladas ou importadas de URL no client). */
   jobs?: unknown;
-}
-
-/** Converte a linha do banco (snake_case) pro shape do front (lib/types.ts). */
-function rowToProfile(row: Record<string, unknown>): MarketProfile {
-  return {
-    id: row.id as string,
-    currentRole: (row.current_role as string) ?? "",
-    targetRole: row.target_role as string,
-    targetMarket: row.target_market as TargetMarket,
-    seniority: row.seniority as string,
-    language: (row.language as HeadlineLanguage) ?? "en",
-    keywords: row.keywords as MarketProfileKeywords,
-    createdAt: row.created_at as string,
-  };
 }
 
 /**
@@ -128,29 +109,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ profile: rowToProfile(row) });
+  return NextResponse.json({ profile: rowToMarketProfile(row) });
 }
 
-/** Devolve o perfil ativo (mais recente) do usuário — consumido pelas outras ferramentas no futuro. */
+/** Devolve o perfil ativo (mais recente) do usuário — consumido pelo LinkedIn Review e futuras ferramentas. */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Sessão expirada. Faça login de novo." }, { status: 401 });
   }
 
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin
-    .from("market_profiles")
-    .select()
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error("MARKET_PROFILE_FETCH_FAILED", { userId: user.id, error });
-    return NextResponse.json({ error: "Não foi possível carregar seu perfil." }, { status: 500 });
-  }
-
-  return NextResponse.json({ profile: data ? rowToProfile(data) : null });
+  const profile = await getActiveMarketProfile(user.id);
+  return NextResponse.json({ profile });
 }

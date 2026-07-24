@@ -6,10 +6,13 @@ import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
-import type { LinkedinReviewResult } from "@/lib/types";
+import { TARGET_MARKET_LABELS, type LinkedinReviewResult, type MarketProfile } from "@/lib/types";
 
 type InputMode = "text" | "pdf";
 type Step = "input" | "loading" | "result" | "limit_reached";
+
+/** Resumo do perfil ativo pro banner (null = não tem; undefined = carregando). */
+type ActiveTarget = Pick<MarketProfile, "targetRole" | "targetMarket"> | null | undefined;
 
 /**
  * Fluxo do review completo do perfil. Extraído da página
@@ -26,9 +29,22 @@ export function LinkedinReviewTool() {
   const [profileText, setProfileText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTarget, setActiveTarget] = useState<ActiveTarget>(undefined);
 
   useEffect(() => {
     track("linkedin_review_viewed");
+    // Perfil de Mercado ativo (criado na aba Headline): quando existe, o
+    // review é avaliado CONTRA esse alvo — o banner comunica isso. Falha
+    // aqui só silencia o banner; o servidor busca o perfil por conta própria.
+    fetch("/api/market-profile")
+      .then((res) => (res.ok ? res.json() : { profile: null }))
+      .then((data) => {
+        const profile = (data?.profile ?? null) as MarketProfile | null;
+        setActiveTarget(
+          profile ? { targetRole: profile.targetRole, targetMarket: profile.targetMarket } : null,
+        );
+      })
+      .catch(() => setActiveTarget(null));
   }, []);
 
   async function handleSubmit() {
@@ -82,6 +98,23 @@ export function LinkedinReviewTool() {
     <div className="flex flex-col gap-6">
       {(step === "input" || step === "limit_reached") && (
         <>
+          {activeTarget && (
+            <div className="rounded-xl bg-[#EAF1EF] px-4 py-3 text-[13px] leading-[1.55] text-[#0F4D4A]">
+              Seu perfil será analisado contra o seu alvo:{" "}
+              <strong>
+                {activeTarget.targetRole} · {TARGET_MARKET_LABELS[activeTarget.targetMarket]}
+              </strong>{" "}
+              (Perfil de Mercado criado a partir das suas vagas na aba Headline).
+            </div>
+          )}
+          {activeTarget === null && (
+            <div className="rounded-xl border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-4 py-3 text-[13px] leading-[1.55] text-[#6E6E72]">
+              Dica: crie seu <strong>Perfil de Mercado</strong> na aba Headline (cole as vagas que
+              você quer conquistar) e este review passa a ser avaliado contra o seu alvo — não no
+              genérico.
+            </div>
+          )}
+
           <div className="flex gap-2 rounded-xl bg-[#F4F4F0] p-1">
             <button
               type="button"
