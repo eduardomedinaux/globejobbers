@@ -248,3 +248,75 @@ export interface MarketHeadlineResult {
   /** 1-2 frases explicando as escolhas (em pt-BR). */
   rationale: string;
 }
+
+// --- CV Tailor v2 (JD como fonte de verdade + match auditável) ---
+//
+// Princípio de produto: o GlobeJobbers não escreve um CV genérico. Ele
+// entende uma vaga, compara com a experiência REAL do candidato e
+// reposiciona o CV sem inventar qualificações. O match é calculado em
+// código (lib/match.ts), nunca pelo modelo.
+
+export type CvRequirementGroup = "hardSkill" | "tool" | "softSkill" | "responsibility";
+export type CvRequirementWeight = "must" | "nice";
+export type CvRequirementStatus = "strong" | "weak" | "missing";
+
+export const CV_REQUIREMENT_STATUS_LABELS: Record<CvRequirementStatus, string> = {
+  strong: "Bem representadas no seu CV",
+  weak: "Presentes, mas pouco evidentes",
+  missing: "Não encontradas no CV",
+};
+
+/** O que a IA identifica LENDO a job description (nunca perguntado). */
+export interface CvJobProfile {
+  role: string;
+  seniority: string;
+  area: string;
+  /** Contexto relevante da empresa/vaga em 1-2 frases. */
+  context: string;
+}
+
+/** Um requisito da vaga, classificado contra o CV com evidência literal. */
+export interface CvRequirement {
+  term: string;
+  group: CvRequirementGroup;
+  /** "must" = a vaga exige; "nice" = desejável. Define o peso (2 vs 1). */
+  weight: CvRequirementWeight;
+  /** strong/weak exigem `evidence` (citação do CV); missing = sem evidência. */
+  status: CvRequirementStatus;
+  evidence: string;
+}
+
+/** Resultado da fórmula de lib/match.ts — todos os números auditáveis. */
+export interface CvMatchBreakdown {
+  percent: number;
+  strong: number;
+  weak: number;
+  missing: number;
+  earnedPoints: number;
+  totalPoints: number;
+}
+
+/** Uma mudança da adaptação, explicada (seção → o que mudou e por quê). */
+export interface CvChange {
+  section: string;
+  change: string;
+}
+
+/**
+ * Resultado do CV Tailor v2. `kind` distingue do CvTailorResult legado em
+ * `analyses.output_data` (ver app/(app)/history/[id]/page.tsx).
+ */
+export interface CvTailorResultV2 {
+  kind: "cv_tailor_v2";
+  job: CvJobProfile;
+  requirements: CvRequirement[];
+  /** Match do CV atual (calculado em código a partir de `requirements`). */
+  matchBefore: CvMatchBreakdown;
+  /** Projeção pós-adaptação: MESMA fórmula, promovendo só os weak evidenciados. */
+  matchAfter: CvMatchBreakdown;
+  /** Termos weak que a reescrita tornou evidentes (base da projeção). */
+  evidencedTerms: string[];
+  changes: CvChange[];
+  rewrittenCv: string;
+  recommendations: string[];
+}

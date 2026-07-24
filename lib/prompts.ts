@@ -1,5 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { HeadlineBuilderAnswers, MarketProfile } from "@/lib/types";
+import type {
+  CvJobProfile,
+  CvRequirement,
+  HeadlineBuilderAnswers,
+  MarketProfile,
+} from "@/lib/types";
 
 // --- LinkedIn Review (Fase 2) ---
 //
@@ -138,126 +143,6 @@ export const LINKEDIN_REVIEW_TOOL: Anthropic.Tool = {
       "recruiterClarity",
       "proofOfImpact",
       "englishReadiness",
-    ],
-  },
-};
-
-// --- CV Tailor (Fase 2) ---
-//
-// Prosa premium (reescrita do CV) → claude-sonnet-4-6, mesma chamada única
-// faz extração de keywords + comparação + reescrita (ver CLAUDE.md "Regras
-// inegociáveis #2" e o mesmo padrão já usado em ANALYSIS_SYSTEM_PROMPT).
-
-export const CV_TAILOR_SYSTEM_PROMPT = `Você é um recrutador técnico sênior e especialista em ATS (Applicant Tracking
-Systems), especializado em adaptar currículos de profissionais brasileiros
-para vagas remotas internacionais pagas em dólar.
-
-O usuário vai enviar o texto do CV atual dele, a descrição de uma vaga
-(job description) e o cargo-alvo. Sua tarefa, nesta ordem:
-
-1. Analise a job description e extraia as palavras-chave técnicas e
-   comportamentais mais relevantes que ela busca.
-2. Compare essas palavras-chave com o CV: quais já aparecem
-   ("keywordsFound") e quais estão ausentes ou pouco destacadas
-   ("keywordsMissing").
-3. Escreva um resumo curto (2-3 frases) de quão compatível o CV atual está
-   com a vaga ("compatibilitySummary") e um score de 0 a 100
-   ("compatibilityScore").
-4. Reescreva o CV inteiro ("rewrittenCv") incorporando as keywords ausentes
-   ONDE FOR HONESTO fazer isso, melhorando clareza e impacto (números,
-   resultados, verbos de ação), e otimizando para ATS sem virar uma lista
-   de palavras-chave sem sentido — precisa continuar lendo como texto
-   humano.
-5. Liste de 3 a 8 bullets de experiência reescritos/melhorados
-   ("improvedBullets") como exemplos concretos do que mudou.
-6. Liste recomendações práticas adicionais ("recommendations") que o
-   usuário mesmo precisa aplicar (ex.: informação que falta e não pode ser
-   inventada).
-
-Regras inegociáveis:
-- NUNCA invente conquistas, números, empresas, cargos ou experiências que
-  não estejam no CV original. Se uma informação está faltando pra preencher
-  bem uma seção, deixe um placeholder claro (ex.: "[quantifique o impacto
-  aqui]") ou mencione a lacuna em "recommendations" — nunca invente o dado.
-- Mantenha tom profissional, confiante e no idioma pedido pelo usuário
-  (padrão: inglês, mercado internacional).
-- Sem buzzwords vazias ("passionate", "synergy", "rockstar").
-
-Responda SEMPRE chamando a ferramenta "submit_cv_tailoring". Não escreva
-texto fora da chamada da ferramenta.`;
-
-export function buildCvTailorUserPrompt(
-  cvText: string,
-  jobDescription: string,
-  targetRole: string,
-  language: "en" | "pt",
-): string {
-  return `Cargo-alvo: ${targetRole}
-Idioma de saída do CV reescrito: ${language === "pt" ? "português" : "inglês"}
-
-Job description da vaga:
-"""
-${jobDescription}
-"""
-
-CV atual do usuário:
-"""
-${cvText}
-"""
-
-Analise e chame "submit_cv_tailoring" com o resultado.`;
-}
-
-export const CV_TAILOR_TOOL: Anthropic.Tool = {
-  name: "submit_cv_tailoring",
-  description:
-    "Envia o resultado da adaptação do CV: score de compatibilidade, resumo, keywords encontradas/ausentes, CV reescrito, bullets melhorados e recomendações.",
-  input_schema: {
-    type: "object",
-    properties: {
-      compatibilityScore: {
-        type: "integer",
-        description: "Compatibilidade do CV atual com a vaga, de 0 a 100.",
-        minimum: 0,
-        maximum: 100,
-      },
-      compatibilitySummary: {
-        type: "string",
-        description: "Resumo de 2-3 frases sobre a compatibilidade do CV com a vaga.",
-      },
-      keywordsFound: {
-        type: "array",
-        items: { type: "string" },
-        description: "Palavras-chave da vaga que já aparecem no CV.",
-      },
-      keywordsMissing: {
-        type: "array",
-        items: { type: "string" },
-        description: "Palavras-chave da vaga ausentes ou pouco destacadas no CV.",
-      },
-      rewrittenCv: {
-        type: "string",
-        description: "Versão completa do CV reescrita/adaptada para a vaga.",
-      },
-      improvedBullets: {
-        type: "array",
-        items: { type: "string" },
-        description: "De 3 a 8 bullets de experiência reescritos como exemplo do que mudou.",
-      },
-      recommendations: {
-        type: "array",
-        items: { type: "string" },
-        description: "Recomendações práticas adicionais que o usuário precisa aplicar.",
-      },
-    },
-    required: [
-      "compatibilityScore",
-      "compatibilitySummary",
-      "keywordsFound",
-      "keywordsMissing",
-      "rewrittenCv",
-      "improvedBullets",
-      "recommendations",
     ],
   },
 };
@@ -786,5 +671,248 @@ export const HEADLINE_FROM_MARKET_TOOL: Anthropic.Tool = {
       },
     },
     required: ["variants", "keywordsLeftOut", "rationale"],
+  },
+};
+
+// --- CV Tailor v2: análise JD × CV + reescrita com whitelist ---
+//
+// Princípio de produto: entender a vaga, comparar com a experiência REAL
+// do candidato e reposicionar o CV sem inventar qualificações. Duas
+// etapas (mesmo padrão do Perfil de Mercado):
+//   A) análise estruturada (haiku, temperature 0): a JD é a fonte de
+//      verdade sobre o cargo; cada requisito é classificado contra o CV
+//      com EVIDÊNCIA literal obrigatória.
+//   B) reescrita (sonnet): recebe apenas a whitelist (strong/weak com
+//      evidência) — os termos missing são PROIBIDOS no texto final.
+// O match é calculado em lib/match.ts, nunca pelo modelo.
+
+export const CV_JOB_ANALYSIS_SYSTEM_PROMPT = `Você é um recrutador técnico sênior e especialista em ATS (Applicant Tracking
+Systems), especializado em colocar profissionais brasileiros em vagas remotas
+internacionais pagas em dólar.
+
+Você vai receber a descrição de uma vaga (job description) e o CV atual do
+candidato. Sua tarefa tem duas partes, nesta ordem:
+
+PARTE 1 — Entenda a vaga (campo "job"). Identifique LENDO a job description:
+- "role": o cargo (ex.: "Senior Product Designer").
+- "seniority": a senioridade pedida (ex.: "Senior", "Mid-level", "Staff").
+- "area": área/especialização (ex.: "Product Design em fintech B2C").
+- "context": contexto relevante da empresa/vaga em 1-2 frases (setor,
+  produto, estágio, o que o time faz).
+
+PARTE 2 — Extraia e classifique os requisitos (campo "requirements").
+De 8 a 15 requisitos, EXCLUSIVAMENTE da job description:
+- "term": o requisito (hard skill, ferramenta/tecnologia, soft skill ou
+  responsabilidade), no idioma da vaga.
+- "group": "hardSkill" | "tool" | "softSkill" | "responsibility".
+- "weight": "must" se a vaga trata como obrigatório (required,
+  must-have, "you have...", listado nos requisitos principais);
+  "nice" se desejável (nice-to-have, plus, bonus, preferred).
+- "status", comparando com o CV:
+  - "strong": há evidência clara e destacada no CV.
+  - "weak": há evidência real, mas pouco evidente (mencionado de passagem,
+    enterrado, sem destaque ou com terminologia diferente).
+  - "missing": NENHUMA evidência no CV. Isso NÃO é um defeito do candidato
+    nem algo a "consertar" — significa apenas que não há evidência no
+    material fornecido.
+- "evidence": para strong/weak, a citação LITERAL (curta) do trecho do CV
+  que comprova — copie do CV, não parafraseie. Para missing, string vazia.
+
+Regras inegociáveis:
+- Requisito sem trecho correspondente REAL no CV é "missing". NUNCA marque
+  strong/weak sem uma citação verificável.
+- Conte semanticamente: "Design Systems" no CV cobre "sistema de design"
+  na vaga (a evidência é o trecho do CV, na forma em que aparece lá).
+- Não infira competências por cargo ("era designer, então sabe Figma" NÃO
+  vale — precisa estar escrito).
+
+Responda SEMPRE chamando a ferramenta "submit_job_match_analysis". Não
+escreva texto fora da chamada da ferramenta.`;
+
+export function buildCvJobAnalysisUserPrompt(cvText: string, jobDescription: string): string {
+  return `Job description da vaga:
+"""
+${jobDescription}
+"""
+
+CV atual do candidato:
+"""
+${cvText}
+"""
+
+Analise a vaga, classifique os requisitos contra o CV e chame
+"submit_job_match_analysis".`;
+}
+
+export const CV_JOB_ANALYSIS_TOOL: Anthropic.Tool = {
+  name: "submit_job_match_analysis",
+  description:
+    "Envia o perfil da vaga (identificado na JD) e os requisitos classificados contra o CV, com evidência literal.",
+  input_schema: {
+    type: "object",
+    properties: {
+      job: {
+        type: "object",
+        properties: {
+          role: { type: "string", description: "Cargo identificado na JD." },
+          seniority: { type: "string", description: "Senioridade pedida." },
+          area: { type: "string", description: "Área/especialização." },
+          context: { type: "string", description: "Contexto da empresa/vaga em 1-2 frases." },
+        },
+        required: ["role", "seniority", "area", "context"],
+      },
+      requirements: {
+        type: "array",
+        minItems: 8,
+        maxItems: 15,
+        items: {
+          type: "object",
+          properties: {
+            term: { type: "string" },
+            group: { type: "string", enum: ["hardSkill", "tool", "softSkill", "responsibility"] },
+            weight: { type: "string", enum: ["must", "nice"] },
+            status: { type: "string", enum: ["strong", "weak", "missing"] },
+            evidence: {
+              type: "string",
+              description:
+                "Citação literal do CV que comprova (obrigatória para strong/weak; vazia para missing).",
+            },
+          },
+          required: ["term", "group", "weight", "status", "evidence"],
+        },
+      },
+    },
+    required: ["job", "requirements"],
+  },
+};
+
+export const CV_REWRITE_SYSTEM_PROMPT = `Você é um recrutador técnico sênior e especialista em ATS, especializado em
+adaptar currículos de profissionais brasileiros para vagas remotas
+internacionais pagas em dólar.
+
+Você vai receber: o CV atual do candidato, o perfil da vaga e a lista de
+requisitos da vaga já classificados contra o CV (com a evidência de cada
+um). Sua tarefa: REPOSICIONAR o CV para esta vaga — sem alterar a verdade
+sobre a experiência do candidato.
+
+O que você PODE fazer:
+- reescrever, resumir, reorganizar e priorizar conteúdo existente;
+- melhorar clareza e impacto (verbos de ação, resultados já presentes);
+- aproximar a terminologia da usada na job description QUANDO a evidência
+  do CV mostra a mesma competência com outro nome;
+- destacar experiências relevantes pra vaga e mudar a ordem de bullets;
+- tornar realizações EXISTENTES mais evidentes (especialmente os
+  requisitos "weak" — evidenciá-los é o principal ganho da adaptação);
+- reduzir destaque de informações pouco relevantes para esta vaga.
+
+REGRA FUNDAMENTAL — NÃO INVENTAR (regra de produto, inviolável):
+Você NUNCA pode adicionar experiência, empresa, cargo, responsabilidade,
+competência, ferramenta, tecnologia, formação, certificação, resultado,
+número, métrica ou projeto que não esteja no CV original.
+Os requisitos marcados como "missing" (lista PROIBIDA no prompt) NÃO podem
+aparecer no CV adaptado — nem como skill, nem em bullet, nem no summary.
+Exemplo: se a vaga pede A/B Testing e o CV não tem evidência de A/B
+Testing, o CV adaptado NÃO menciona A/B Testing. Se fizer falta, o lugar
+disso é em "recommendations" (ex.: "Se você tem experiência com A/B
+Testing que não está no CV, adicione — a vaga trata como obrigatório").
+
+Campos de saída:
+- "rewrittenCv": o CV completo adaptado, no idioma pedido, pronto pra
+  copiar. Mantém todos os fatos; muda posicionamento, ordem, ênfase e
+  redação. Sem buzzwords vazias ("passionate", "synergy", "rockstar").
+- "changes": 3 a 8 mudanças explicadas, cada uma com "section" (ex.:
+  "Summary", nome da empresa/experiência) e "change" (o que mudou e POR QUÊ
+  em relação a esta vaga, em pt-BR, 1-2 frases).
+- "evidencedTerms": quais termos classificados como "weak" o seu texto
+  tornou evidentes (apenas os que você realmente destacou).
+- "recommendations": 2 a 5 ações que só o candidato pode fazer (lacunas
+  reais, dados que faltam, perguntas do tipo "tem experiência com X não
+  mencionada?"), em pt-BR.
+
+Responda SEMPRE chamando a ferramenta "submit_cv_rewrite". Não escreva
+texto fora da chamada da ferramenta.`;
+
+export function buildCvRewriteUserPrompt(
+  cvText: string,
+  job: CvJobProfile,
+  requirements: CvRequirement[],
+  language: "en" | "pt",
+  violationTerms?: string[],
+): string {
+  const allowed = requirements
+    .filter((r) => r.status !== "missing")
+    .map((r) => `- ${r.term} [${r.status}] — evidência no CV: "${r.evidence}"`)
+    .join("\n");
+  const forbidden = requirements
+    .filter((r) => r.status === "missing")
+    .map((r) => `- ${r.term}`)
+    .join("\n");
+
+  const reinforcement = violationTerms?.length
+    ? `
+
+ATENÇÃO — TENTATIVA ANTERIOR REJEITADA: o texto gerado mencionou termos da
+lista PROIBIDA (${violationTerms.join(", ")}). Gere novamente SEM NENHUMA
+menção a esses termos, em nenhuma forma ou variação.`
+    : "";
+
+  return `Vaga-alvo:
+- Cargo: ${job.role}
+- Senioridade: ${job.seniority}
+- Área: ${job.area}
+- Contexto: ${job.context}
+- Idioma do CV adaptado: ${language === "pt" ? "português" : "inglês"}
+
+Requisitos COM evidência no CV (use e destaque — especialmente os [weak]):
+${allowed || "- (nenhum)"}
+
+Requisitos SEM evidência no CV — PROIBIDOS no texto final:
+${forbidden || "- (nenhum)"}
+
+CV atual do candidato:
+"""
+${cvText}
+"""
+${reinforcement}
+
+Adapte o CV e chame "submit_cv_rewrite".`;
+}
+
+export const CV_REWRITE_TOOL: Anthropic.Tool = {
+  name: "submit_cv_rewrite",
+  description:
+    "Envia o CV adaptado à vaga, as mudanças explicadas, os termos weak evidenciados e recomendações.",
+  input_schema: {
+    type: "object",
+    properties: {
+      rewrittenCv: {
+        type: "string",
+        description: "CV completo adaptado, sem nenhuma informação inventada.",
+      },
+      changes: {
+        type: "array",
+        minItems: 3,
+        maxItems: 8,
+        items: {
+          type: "object",
+          properties: {
+            section: { type: "string", description: "Seção/experiência alterada." },
+            change: { type: "string", description: "O que mudou e por quê (pt-BR)." },
+          },
+          required: ["section", "change"],
+        },
+      },
+      evidencedTerms: {
+        type: "array",
+        items: { type: "string" },
+        description: "Termos [weak] que a reescrita tornou evidentes.",
+      },
+      recommendations: {
+        type: "array",
+        items: { type: "string" },
+        description: "Ações que só o candidato pode fazer (pt-BR).",
+      },
+    },
+    required: ["rewrittenCv", "changes", "evidencedTerms", "recommendations"],
   },
 };

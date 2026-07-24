@@ -6,11 +6,13 @@ import { getAnalysisById } from "@/lib/history";
 import { ScoreMiniCard } from "@/components/score-mini-card";
 import { HeadlineCard } from "@/components/headline-card";
 import { CvTailorResultView } from "@/components/cv-tailor-result";
+import { CvTailorResultV2View } from "@/components/cv-tailor-result-v2";
 import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
 import { HeadlineMarketResultView } from "@/components/market-profile/headline-market-result";
 import { TOOL_TYPE_LABELS } from "@/lib/types";
 import type {
   CvTailorResult,
+  CvTailorResultV2,
   HeadlineAnalysisResult,
   LinkedinReviewResult,
   MarketHeadlineResult,
@@ -65,9 +67,16 @@ export default async function HistoryDetailPage({ params }: { params: { id: stri
           );
         })()}
 
-      {analysis.tool_type === "cv_tailor" && (
-        <CvTailorResultView result={analysis.output_data as CvTailorResult} />
-      )}
+      {analysis.tool_type === "cv_tailor" &&
+        (() => {
+          const output = analysis.output_data as CvTailorResult | CvTailorResultV2;
+          // Resultados v2 têm kind próprio; os legados (compatibilityScore
+          // do modelo) não têm `kind`.
+          if ("kind" in output && output.kind === "cv_tailor_v2") {
+            return <CvTailorResultV2View result={output} />;
+          }
+          return <CvTailorResultView result={output as CvTailorResult} />;
+        })()}
 
       {analysis.tool_type === "linkedin_review" && (
         <LinkedinReviewResultView result={analysis.output_data as LinkedinReviewResult} />

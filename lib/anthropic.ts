@@ -3,12 +3,15 @@ import {
   ANALYSIS_SYSTEM_PROMPT,
   ANALYSIS_TOOL,
   buildAnalysisUserPrompt,
-  buildCvTailorUserPrompt,
   buildHeadlineBuilderUserPrompt,
   buildHeadlineTextUserPrompt,
   buildLinkedinReviewUserPrompt,
-  CV_TAILOR_SYSTEM_PROMPT,
-  CV_TAILOR_TOOL,
+  CV_JOB_ANALYSIS_SYSTEM_PROMPT,
+  CV_JOB_ANALYSIS_TOOL,
+  CV_REWRITE_SYSTEM_PROMPT,
+  CV_REWRITE_TOOL,
+  buildCvJobAnalysisUserPrompt,
+  buildCvRewriteUserPrompt,
   HEADLINE_BUILDER_SYSTEM_PROMPT,
   HEADLINE_TEXT_SYSTEM_PROMPT,
   HEADLINE_TEXT_TOOL,
@@ -26,7 +29,9 @@ import {
 import {
   LINKEDIN_REVIEW_CATEGORY_KEYS,
   type AnalysisResult,
-  type CvTailorResult,
+  type CvChange,
+  type CvJobProfile,
+  type CvRequirement,
   type HeadlineAnalysisResult,
   type HeadlineBuilderAnswers,
   type LinkedinReviewCategory,
@@ -230,63 +235,6 @@ export async function generateHeadlineFromText(headlineText: string): Promise<He
   }
 
   return validateHeadlineAnalysisResult(toolUse.input);
-}
-
-const MAX_REWRITTEN_CV_LENGTH = 8000;
-
-function validateCvTailorResult(raw: unknown): CvTailorResult {
-  if (typeof raw !== "object" || raw === null) {
-    throw new Error("Resposta da IA não é um objeto.");
-  }
-  const obj = raw as Record<string, unknown>;
-
-  const toStringArray = (value: unknown, max: number): string[] =>
-    Array.isArray(value)
-      ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0).slice(0, max)
-      : [];
-
-  return {
-    compatibilityScore: clampScore(obj.compatibilityScore),
-    compatibilitySummary:
-      typeof obj.compatibilitySummary === "string" ? obj.compatibilitySummary : "",
-    keywordsFound: toStringArray(obj.keywordsFound, 12),
-    keywordsMissing: toStringArray(obj.keywordsMissing, 12),
-    rewrittenCv:
-      (typeof obj.rewrittenCv === "string" ? obj.rewrittenCv : "").slice(0, MAX_REWRITTEN_CV_LENGTH),
-    improvedBullets: toStringArray(obj.improvedBullets, 8),
-    recommendations: toStringArray(obj.recommendations, 6),
-  };
-}
-
-/**
- * CV Tailor: extração de keywords da vaga, comparação com o CV e reescrita
- * numa chamada só (mesmo padrão de generateAnalysis — separar em
- * haiku+sonnet fica pra quando o volume justificar).
- */
-export async function generateCvTailoring(
-  cvText: string,
-  jobDescription: string,
-  targetRole: string,
-  language: "en" | "pt",
-): Promise<CvTailorResult> {
-  const response = await anthropic.messages.create({
-    model: ANALYSIS_MODEL,
-    max_tokens: 3000,
-    temperature: 0,
-    system: CV_TAILOR_SYSTEM_PROMPT,
-    messages: [
-      { role: "user", content: buildCvTailorUserPrompt(cvText, jobDescription, targetRole, language) },
-    ],
-    tools: [CV_TAILOR_TOOL],
-    tool_choice: { type: "tool", name: CV_TAILOR_TOOL.name },
-  });
-
-  const toolUse = response.content.find((block) => block.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("A IA não retornou o resultado estruturado esperado.");
-  }
-
-  return validateCvTailorResult(toolUse.input);
 }
 
 const MAX_CATEGORY_TEXT_LENGTH = 1000;
@@ -534,4 +482,182 @@ export async function generateHeadlineFromMarketProfile(
   }
 
   return validateMarketHeadlineResult(toolUse.input, profile.id);
+}
+
+// --- CV Tailor v2 (ver plano aprovado em 24/jul/2026) ---
+//
+// Etapa A (haiku, temperature 0): JD é a fonte de verdade; requisitos
+// classificados contra o CV com evidência literal obrigatória.
+// Etapa B (sonnet): reescrita com whitelist — termos missing PROIBIDOS.
+// O match é calculado em lib/match.ts, nunca aqui.
+
+const MAX_CV_REQUIREMENTS = 15;
+const MAX_REWRITTEN_CV_LENGTH = 12000;
+
+const VALID_REQ_GROUPS: CvRequirement["group"][] = [
+  "hardSkill",
+  "tool",
+  "softSkill",
+  "responsibility",
+];
+
+export interface CvJobAnalysis {
+  job: CvJobProfile;
+  requirements: CvRequirement[];
+}
+
+function validateCvJobAnalysis(raw: unknown): CvJobAnalysis {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+
+  const rawJob = (obj.job as Record<string, unknown>) ?? {};
+  const job: CvJobProfile = {
+    role: typeof rawJob.role === "string" ? rawJob.role.trim().slice(0, 120) : "",
+    seniority: typeof rawJob.seniority === "string" ? rawJob.seniority.trim().slice(0, 60) : "",
+    area: typeof rawJob.area === "string" ? rawJob.area.trim().slice(0, 120) : "",
+    context: typeof rawJob.context === "string" ? rawJob.context.trim().slice(0, 400) : "",
+  };
+  if (!job.role) {
+    throw new Error("A IA não identificou o cargo na job description.");
+  }
+
+  const requirements: CvRequirement[] = (Array.isArray(obj.requirements) ? obj.requirements : [])
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => {
+      const status: CvRequirement["status"] =
+        item.status === "strong" || item.status === "weak" ? item.status : "missing";
+      const evidence =
+        typeof item.evidence === "string" ? item.evidence.trim().slice(0, 300) : "";
+      return {
+        term: typeof item.term === "string" ? item.term.trim().slice(0, 80) : "",
+        group: VALID_REQ_GROUPS.includes(item.group as CvRequirement["group"])
+          ? (item.group as CvRequirement["group"])
+          : "hardSkill",
+        weight: item.weight === "must" ? ("must" as const) : ("nice" as const),
+        // Regra de evidência aplicada TAMBÉM aqui: strong/weak sem citação
+        // vira missing — sem evidência verificável, não há crédito.
+        status: status !== "missing" && evidence.length === 0 ? "missing" : status,
+        evidence: status === "missing" ? "" : evidence,
+      };
+    })
+    .filter((r) => r.term.length > 0)
+    .slice(0, MAX_CV_REQUIREMENTS);
+
+  if (requirements.length === 0) {
+    throw new Error("Nenhum requisito extraído da job description.");
+  }
+
+  return { job, requirements };
+}
+
+/** Etapa A: entende a vaga e classifica os requisitos contra o CV. */
+export async function analyzeCvAgainstJob(
+  cvText: string,
+  jobDescription: string,
+): Promise<CvJobAnalysis> {
+  const response = await anthropic.messages.create({
+    model: EXTRACTION_MODEL,
+    max_tokens: 3000,
+    temperature: 0,
+    system: CV_JOB_ANALYSIS_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildCvJobAnalysisUserPrompt(cvText, jobDescription) }],
+    tools: [CV_JOB_ANALYSIS_TOOL],
+    tool_choice: { type: "tool", name: CV_JOB_ANALYSIS_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateCvJobAnalysis(toolUse.input);
+}
+
+export interface CvRewriteOutput {
+  rewrittenCv: string;
+  changes: CvChange[];
+  evidencedTerms: string[];
+  recommendations: string[];
+}
+
+function validateCvRewriteOutput(raw: unknown, requirements: CvRequirement[]): CvRewriteOutput {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+
+  const toStringArray = (value: unknown, max: number): string[] =>
+    Array.isArray(value)
+      ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0).slice(0, max)
+      : [];
+
+  const rewrittenCv = (typeof obj.rewrittenCv === "string" ? obj.rewrittenCv : "").slice(
+    0,
+    MAX_REWRITTEN_CV_LENGTH,
+  );
+  if (rewrittenCv.trim().length === 0) {
+    throw new Error("A IA não retornou o CV adaptado.");
+  }
+
+  const changes: CvChange[] = (Array.isArray(obj.changes) ? obj.changes : [])
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      section: typeof item.section === "string" ? item.section.trim().slice(0, 80) : "",
+      change: typeof item.change === "string" ? item.change.trim().slice(0, 400) : "",
+    }))
+    .filter((c) => c.section.length > 0 && c.change.length > 0)
+    .slice(0, 8);
+
+  // Só termos realmente classificados como weak podem ser "evidenciados" —
+  // é isso que impede a projeção de subir por qualquer outro caminho.
+  const weakTerms = new Set(
+    requirements.filter((r) => r.status === "weak").map((r) => r.term.toLowerCase()),
+  );
+  const evidencedTerms = toStringArray(obj.evidencedTerms, MAX_CV_REQUIREMENTS).filter((t) =>
+    weakTerms.has(t.toLowerCase()),
+  );
+
+  return {
+    rewrittenCv,
+    changes,
+    evidencedTerms,
+    recommendations: toStringArray(obj.recommendations, 5),
+  };
+}
+
+/**
+ * Etapa B: reescreve o CV com whitelist (strong/weak com evidência) e lista
+ * proibida (missing). `violationTerms` é o reforço da 2ª tentativa quando o
+ * check anti-invenção da rota detecta violação (ver a rota).
+ */
+export async function rewriteCvForJob(
+  cvText: string,
+  job: CvJobProfile,
+  requirements: CvRequirement[],
+  language: "en" | "pt",
+  violationTerms?: string[],
+): Promise<CvRewriteOutput> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 4000,
+    temperature: 0,
+    system: CV_REWRITE_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildCvRewriteUserPrompt(cvText, job, requirements, language, violationTerms),
+      },
+    ],
+    tools: [CV_REWRITE_TOOL],
+    tool_choice: { type: "tool", name: CV_REWRITE_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateCvRewriteOutput(toolUse.input, requirements);
 }
