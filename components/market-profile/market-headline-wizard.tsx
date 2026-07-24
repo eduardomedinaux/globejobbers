@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
+import { cn } from "@/lib/utils";
 import {
   TARGET_MARKET_LABELS,
   TARGET_MARKET_OPTIONS,
@@ -43,6 +44,10 @@ interface JobEntry {
 }
 
 const EMPTY_JOB: JobEntry = { text: "", url: "", importing: false, urlError: null };
+
+// Medidor de força: mais vagas = perfil mais assertivo (recorrência só
+// existe com 2+; com 5 a leitura do mercado é a mais confiável).
+const STRENGTH_LABELS = ["", "Básica", "Razoável", "Boa", "Muito boa", "Máxima"] as const;
 
 /**
  * Wizard da metodologia (ver PROPOSTA-PERFIL-DE-MERCADO.md): a fonte de
@@ -310,23 +315,44 @@ export function MarketHeadlineWizard() {
             ))}
           </div>
 
-          {jobs.length < MAX_JOBS && (
-            <div className="flex flex-col gap-1.5">
-              <button
-                type="button"
-                onClick={() => setJobs((prev) => [...prev, { ...EMPTY_JOB }])}
-                className="flex items-center gap-1.5 self-start text-[13.5px] font-medium text-[#0F4D4A] transition-colors hover:text-[#0B3F3C]"
-              >
-                <Plus className="h-4 w-4" />
-                Adicionar outra vaga
-              </button>
-              {filledJobs.length >= 1 && filledJobs.length < MAX_JOBS && (
-                <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
-                  1 vaga já funciona — mas pra uma análise ainda mais precisa, recomendamos
-                  adicionar até {MAX_JOBS} vagas.
+          {filledJobs.length > 0 && (
+            <div className="rounded-xl border border-[#EAEAE4] bg-white px-4 py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
+                  Força da análise
                 </p>
-              )}
+                <p className="text-[13px] font-semibold text-[#0F4D4A]">
+                  {STRENGTH_LABELS[Math.min(filledJobs.length, MAX_JOBS)]}
+                </p>
+              </div>
+              <div className="mt-2 flex gap-1">
+                {Array.from({ length: MAX_JOBS }, (_, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "h-1.5 flex-1 rounded-full transition-colors",
+                      i < filledJobs.length ? "bg-[#0F4D4A]" : "bg-[#EAEAE4]",
+                    )}
+                  />
+                ))}
+              </div>
+              <p className="mt-2 text-[12.5px] leading-[1.5] text-[#8A8A85]">
+                {filledJobs.length < MAX_JOBS
+                  ? `1 vaga já funciona — mas quanto mais vagas, mais assertiva a leitura do seu mercado. Adicione até ${MAX_JOBS}.`
+                  : "Máxima precisão: com 5 vagas, a recorrência das palavras-chave é a leitura mais confiável do mercado."}
+              </p>
             </div>
+          )}
+
+          {jobs.length < MAX_JOBS && (
+            <button
+              type="button"
+              onClick={() => setJobs((prev) => [...prev, { ...EMPTY_JOB }])}
+              className="flex items-center gap-1.5 self-start text-[13.5px] font-medium text-[#0F4D4A] transition-colors hover:text-[#0B3F3C]"
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar outra vaga
+            </button>
           )}
 
           {shortJobIndex !== -1 && (
