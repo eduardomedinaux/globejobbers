@@ -3,12 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
 import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
 import { TARGET_MARKET_LABELS, type LinkedinReviewResult, type MarketProfile } from "@/lib/types";
 
-type InputMode = "text" | "pdf";
 type Step = "input" | "loading" | "result" | "limit_reached";
 
 /** Resumo do perfil ativo pro banner (null = não tem; undefined = carregando). */
@@ -20,13 +18,11 @@ type ActiveTarget = Pick<MarketProfile, "targetRole" | "targetMarket"> | null | 
  * Backend intocado: mesma rota /api/tools/linkedin-review, mesmo limite.
  */
 export function LinkedinReviewTool() {
-  const [mode, setMode] = useState<InputMode>("pdf");
   const [step, setStep] = useState<Step>("input");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LinkedinReviewResult | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
 
-  const [profileText, setProfileText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(undefined);
@@ -50,14 +46,10 @@ export function LinkedinReviewTool() {
   async function handleSubmit() {
     setStep("loading");
     setError(null);
-    track("linkedin_review_started", { mode });
+    track("linkedin_review_started", { mode: "pdf" });
 
     const formData = new FormData();
-    if (mode === "pdf" && file) {
-      formData.append("file", file);
-    } else {
-      formData.append("profileText", profileText);
-    }
+    if (file) formData.append("file", file);
 
     try {
       const res = await fetch("/api/tools/linkedin-review", { method: "POST", body: formData });
@@ -87,12 +79,11 @@ export function LinkedinReviewTool() {
     setStep("input");
     setResult(null);
     setError(null);
-    setProfileText("");
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  const canSubmit = mode === "pdf" ? file !== null : profileText.trim().length > 0;
+  const canSubmit = file !== null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,56 +106,24 @@ export function LinkedinReviewTool() {
             </div>
           )}
 
-          <div className="flex gap-2 rounded-xl bg-[#F4F4F0] p-1">
-            <button
-              type="button"
-              onClick={() => setMode("pdf")}
-              className={`flex-1 rounded-lg py-2 text-[13.5px] font-medium transition-colors ${
-                mode === "pdf" ? "bg-white text-[#0F4D4A] shadow-sm" : "text-[#6E6E72]"
-              }`}
-            >
-              Enviar PDF do perfil
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("text")}
-              className={`flex-1 rounded-lg py-2 text-[13.5px] font-medium transition-colors ${
-                mode === "text" ? "bg-white text-[#0F4D4A] shadow-sm" : "text-[#6E6E72]"
-              }`}
-            >
-              Colar texto do perfil
-            </button>
+          {/* PDF-only (mesma decisão do MVP público): colar o perfil inteiro
+              é impraticável e gera input de qualidade imprevisível — o PDF
+              nativo do LinkedIn é o perfil completo e estruturado. */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-[#1B1B1E]">
+              PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="rounded-lg border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-3 py-4 text-[13.5px] text-[#6E6E72] file:mr-3 file:rounded-md file:border-0 file:bg-[#0F4D4A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-medium file:text-white"
+            />
+            <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
+              Seus arquivos são usados apenas para gerar sua análise e não são compartilhados.
+            </p>
           </div>
-
-          {mode === "pdf" ? (
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-[#1B1B1E]">
-                PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)
-              </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                className="rounded-lg border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-3 py-4 text-[13.5px] text-[#6E6E72] file:mr-3 file:rounded-md file:border-0 file:bg-[#0F4D4A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-medium file:text-white"
-              />
-              <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
-                Seus arquivos são usados apenas para gerar sua análise e não são compartilhados.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-[#1B1B1E]">
-                Cole o texto completo do seu perfil
-              </label>
-              <Textarea
-                value={profileText}
-                onChange={(e) => setProfileText(e.target.value)}
-                placeholder="Nome, headline, sobre, experiências…"
-                rows={10}
-              />
-            </div>
-          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

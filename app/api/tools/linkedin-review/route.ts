@@ -11,9 +11,11 @@ const MAX_PROFILE_LENGTH = 20_000;
 const MIN_PDF_TEXT_LENGTH = 100;
 
 /**
- * LinkedIn Review. Recebe o perfil via PDF (reaproveitando lib/pdf.ts,
- * mesma extração do Ato 2) ou texto colado. Autenticação + limite mensal +
- * persistência em `analyses`, mesmo padrão das outras ferramentas logadas.
+ * LinkedIn Review. Input PDF-only (reaproveitando lib/pdf.ts, mesma
+ * extração do Ato 2) — mesma decisão do MVP público: colar o perfil
+ * inteiro é impraticável e gera input de qualidade imprevisível.
+ * Autenticação + limite mensal + persistência em `analyses`, mesmo padrão
+ * das outras ferramentas logadas.
  *
  * Se o usuário tiver um Perfil de Mercado ativo (criado na aba Headline a
  * partir das vagas dele), a análise é feita CONTRA esse alvo — mesma fonte
@@ -37,27 +39,29 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
-    const rawProfileText = formData.get("profileText");
 
-    if (file instanceof File && file.size > 0) {
-      if (file.type !== "application/pdf") {
-        return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
-      }
-      const buffer = await file.arrayBuffer();
-      profileText = await extractTextFromPdf(buffer);
+    if (!(file instanceof File) || file.size === 0) {
+      return NextResponse.json(
+        { error: "Envie o PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)." },
+        { status: 400 },
+      );
+    }
+    if (file.type !== "application/pdf") {
+      return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
+    }
 
-      const meaningfulLength = profileText.replace(/\s+/g, "").length;
-      if (meaningfulLength < MIN_PDF_TEXT_LENGTH) {
-        return NextResponse.json(
-          {
-            error:
-              "Não consegui ler o texto desse PDF. Ele pode ser uma imagem escaneada. Tente gerar o PDF de novo pelo LinkedIn (Mais → Salvar como PDF) e suba aqui.",
-          },
-          { status: 400 },
-        );
-      }
-    } else {
-      profileText = typeof rawProfileText === "string" ? rawProfileText : "";
+    const buffer = await file.arrayBuffer();
+    profileText = await extractTextFromPdf(buffer);
+
+    const meaningfulLength = profileText.replace(/\s+/g, "").length;
+    if (meaningfulLength < MIN_PDF_TEXT_LENGTH) {
+      return NextResponse.json(
+        {
+          error:
+            "Não consegui ler o texto desse PDF. Ele pode ser uma imagem escaneada. Tente gerar o PDF de novo pelo LinkedIn (Mais → Salvar como PDF) e suba aqui.",
+        },
+        { status: 400 },
+      );
     }
   } catch {
     return NextResponse.json({ error: "Não foi possível ler o conteúdo enviado." }, { status: 400 });
