@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ViewTracker } from "@/components/analytics/view-tracker";
 import { ToolCard, type ToolIcon } from "@/components/dashboard/tool-card";
 import { getCurrentUser } from "@/lib/supabase-server";
+import { getPlanStatus } from "@/lib/plan";
 import { getUsageStatus, FREE_LIMITS } from "@/lib/usage";
 import { getRecentAnalyses } from "@/lib/history";
 import { TOOL_TYPE_LABELS } from "@/lib/types";
@@ -19,12 +20,15 @@ export default async function DashboardPage() {
   // Layout já garante user !== null aqui — checado de novo só pro TS.
   const recentAnalyses = user ? await getRecentAnalyses(user.id, 5) : [];
 
+  // Plano efetivo buscado uma vez e repassado — evita 1 query por ferramenta.
+  const plan = user ? (await getPlanStatus(user.id)).plan : "free";
+
   // Headline não tem mais card próprio: virou aba do LinkedIn Review, e o
   // limite dela aparece dentro da própria aba.
   const [cvTailorUsage, linkedinReviewUsage] = user
     ? await Promise.all([
-        getUsageStatus(user.id, "cv_tailor"),
-        getUsageStatus(user.id, "linkedin_review"),
+        getUsageStatus(user.id, "cv_tailor", plan),
+        getUsageStatus(user.id, "linkedin_review", plan),
       ])
     : [
         { used: 0, limit: FREE_LIMITS.cv_tailor, remaining: FREE_LIMITS.cv_tailor, limitReached: false },

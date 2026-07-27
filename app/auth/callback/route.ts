@@ -10,12 +10,15 @@ import { captureServerEvent } from "@/lib/posthog-server";
 // desta janela.
 const NEW_USER_THRESHOLD_MS = 5000;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Troca o code do OAuth (Google) por uma sessão, garante o profile do
- * usuário (upsert) e redireciona pro destino original. O upsert acontece
- * aqui em vez de via trigger no Postgres — mantém a lógica em código da
- * aplicação em vez de espalhar por triggers no banco (ver CLAUDE.md:
- * preferir soluções simples/legíveis).
+ * usuário (upsert), resgata concessões Pro pendentes (`pro_grants` — beta,
+ * mentoria, futuramente webhook Hotmart) e redireciona pro destino
+ * original. O upsert acontece aqui em vez de via trigger no Postgres —
+ * mantém a lógica em código da aplicação em vez de espalhar por triggers
+ * no banco (ver CLAUDE.md: preferir soluções simples/legíveis).
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
       },
       { onConflict: "id" },
     )
-    .select("created_at, updated_at")
+    .select("created_at, updated_at, plan, plan_expires_at")
     .single();
 
   if (upsertError) {
@@ -62,6 +65,62 @@ export async function GET(request: NextRequest) {
     if (isNewUser) {
       await captureServerEvent(user.id, "signup_completed", { provider: "google" });
     }
+  }
+
+  // Resgate de concessões Pro pendentes pro e-mail (concedidas via SQL
+  // manual hoje; via webhook Hotmart no futuro — mesma fila). Falha aqui
+  // NUNCA bloqueia o login; a concessão fica pendente pro próximo.
+  try {
+    const email = (user.email ?? "").trim();
+    if (email) {
+      // .ilike sem curinga = igualdade case-insensitive.
+      const { data: grants } = await admin
+        .from("pro_grants")
+        .select("id, days")
+        .is("claimed_at", null)
+        .ilike("email", email);
+
+      if (grants && grants.length > 0) {
+        const totalDays = grants.reduce((sum, g) => sum + (Number(g.days) || 30), 0);
+        // Estende a partir da expiração futura existente (grants somam),
+        // ou de agora quando não há Pro vigente.
+        const currentExpiry =
+          profile?.plan === "pro" && profile.plan_expires_at
+            ? new Date(profile.plan_expires_at as string)
+            : null;
+        const base =
+          currentExpiry && currentExpiry.getTime() > Date.now() ? currentExpiry : new Date();
+        const expiresAt = new Date(base.getTime() + totalDays * DAY_MS).toISOString();
+
+        const { error: planError } = await admin
+          .from("profiles")
+          .update({ plan: "pro", plan_expires_at: expiresAt, updated_at: new Date().toISOString() })
+          .eq("id", user.id);
+
+        if (planError) {
+          console.error("PRO_GRANT_APPLY_FAILED", { userId: user.id, planError });
+        } else {
+          const { error: claimError } = await admin
+            .from("pro_grants")
+            .update({ claimed_at: new Date().toISOString(), claimed_by: user.id })
+            .in(
+              "id",
+              grants.map((g) => g.id),
+            );
+          if (claimError) {
+            // Grant aplicado mas não marcado — pode reaplicar no próximo
+            // login (estendendo de novo). Logamos pra correção manual.
+            console.error("PRO_GRANT_CLAIM_FAILED", { userId: user.id, claimError });
+          }
+          await captureServerEvent(user.id, "pro_grant_claimed", {
+            grants: grants.length,
+            days: totalDays,
+          });
+        }
+      }
+    }
+  } catch (grantError) {
+    console.error("PRO_GRANT_UNEXPECTED", { userId: user.id, grantError });
   }
 
   return NextResponse.redirect(`${origin}${next}`);

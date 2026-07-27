@@ -142,3 +142,49 @@ create index if not exists market_profiles_user_idx
 -- exclusivamente via service role em Route Handlers.
 alter table public.market_profiles enable row level security;
 grant select, insert, update on public.market_profiles to service_role;
+
+-- ============================================================================
+-- Plano Pro real (mentoria/beta — decisão de 24/jul/2026)
+-- ============================================================================
+--
+-- Pro = limites maiores (30 headlines / 20 CV Tailor / 10 reviews por mês,
+-- ver lib/usage.ts), com validade. `pro_grants` é a fila de concessões por
+-- e-mail: funciona ANTES do cadastro (a pessoa compra a mentoria, ganha o
+-- grant, e quando logar com aquele e-mail o app/auth/callback resgata) e é
+-- a mesma mecânica que o webhook da Hotmart vai usar no futuro.
+
+alter table public.profiles add column if not exists plan_expires_at timestamptz;
+
+create table if not exists public.pro_grants (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  days integer not null default 30 check (days > 0),
+  -- 'beta' | 'mentoria' | 'hotmart' | 'manual' — de onde veio a concessão
+  source text,
+  created_at timestamptz not null default now(),
+  claimed_at timestamptz,
+  claimed_by uuid references auth.users (id) on delete set null
+);
+
+create index if not exists pro_grants_email_idx on public.pro_grants (lower(email));
+
+alter table public.pro_grants enable row level security;
+grant select, insert, update on public.pro_grants to service_role;
+
+-- ----------------------------------------------------------------------------
+-- COMO CONCEDER PRO (manual, até o webhook da Hotmart existir):
+--
+-- Opção A — por e-mail, funciona antes OU depois do cadastro (resgatado no
+-- próximo login da pessoa):
+--   insert into public.pro_grants (email, days, source)
+--   values ('fulano@gmail.com', 30, 'beta');
+--
+-- Opção B — aplicar IMEDIATAMENTE a quem já tem conta (sem esperar login):
+--   update public.profiles
+--   set plan = 'pro', plan_expires_at = now() + interval '30 days'
+--   where email = 'fulano@gmail.com';
+--
+-- Consultar quem tem Pro ativo:
+--   select email, plan, plan_expires_at from public.profiles
+--   where plan = 'pro' and (plan_expires_at is null or plan_expires_at > now());
+-- ----------------------------------------------------------------------------

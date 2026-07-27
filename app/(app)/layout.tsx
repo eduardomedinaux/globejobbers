@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { resolveEffectivePlan } from "@/lib/plan";
 import { DashboardNav } from "@/components/dashboard/nav";
 import { AppHeader } from "@/components/dashboard/app-header";
 
@@ -21,12 +22,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const admin = getSupabaseAdmin();
   const { data: profile } = await admin
     .from("profiles")
-    .select("name, plan")
+    .select("name, plan, plan_expires_at")
     .eq("id", user.id)
     .maybeSingle();
 
   const name = profile?.name || user.user_metadata?.full_name || user.email || "Você";
-  const plan = (profile?.plan as "free" | "pro") ?? "free";
+  // Plano EFETIVO: pro expirado exibe (e vale) como free — ver lib/plan.ts.
+  const { plan } = resolveEffectivePlan(profile?.plan, profile?.plan_expires_at);
 
   return (
     <div className="min-h-screen bg-background">
