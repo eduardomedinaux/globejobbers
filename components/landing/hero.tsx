@@ -41,19 +41,15 @@ export function Hero() {
           <strong className="font-semibold text-tinta">more onde quiser</strong>.
         </p>
 
-        {/* CTAs — hierarquia: primário sólido → teaser laranja → outline discreto */}
+        {/* CTA único: cadastro é o caminho (decisão de 24/jul — sai o
+            "testar sem cadastro"; /preview segue existindo pra links de
+            campanha, só não é mais oferecido aqui) */}
         <div className="mt-8 flex w-full flex-col items-center justify-center gap-3.5 sm:w-auto sm:flex-row">
           <Link
             href="/login"
             className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border-2 border-tinta bg-tinta px-7 py-4 text-base font-bold text-papel transition-[transform,box-shadow] duration-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-dura-laranja active:translate-x-0 active:translate-y-0 active:shadow-dura-sm sm:w-auto"
           >
             Começar grátis
-          </Link>
-          <Link
-            href="/preview/full-scan"
-            className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border-2 border-tinta bg-laranja px-7 py-4 text-base font-bold text-papel transition-[transform,box-shadow] duration-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-dura active:translate-x-0 active:translate-y-0 active:shadow-dura-sm sm:w-auto"
-          >
-            Testar sem cadastro →
           </Link>
         </div>
 
