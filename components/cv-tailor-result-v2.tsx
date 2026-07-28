@@ -168,9 +168,9 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
               </p>
               <RequirementPills items={missing} tone="missing" />
               <p className="mt-2.5 text-[12.5px] leading-[1.55] text-[#A0A09B]">
-                "Não encontrada" significa que a vaga pede e não achamos evidência no material que
-                você enviou — NÃO adicionamos nada disso ao seu CV. Se você tem essa experiência e
-                ela não está no CV, inclua você mesmo (veja as recomendações abaixo).
+                &ldquo;Não encontrada&rdquo; significa que a vaga pede e não achamos evidência no
+                material que você enviou — NÃO adicionamos nada disso ao seu CV. Se você tem essa
+                experiência e ela não está no CV, inclua você mesmo (veja as recomendações abaixo).
               </p>
             </div>
           )}
