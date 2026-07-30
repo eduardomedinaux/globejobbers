@@ -25,10 +25,12 @@ export default async function DashboardPage() {
 
   // Headline não tem mais card próprio: virou aba do LinkedIn Review, e o
   // limite dela aparece dentro da própria aba.
-  const [cvTailorUsage, linkedinReviewUsage] = user
+  const [cvTailorUsage, linkedinReviewUsage, networkingUsage, postUsage] = user
     ? await Promise.all([
         getUsageStatus(user.id, "cv_tailor", plan),
         getUsageStatus(user.id, "linkedin_review", plan),
+        getUsageStatus(user.id, "networking", plan),
+        getUsageStatus(user.id, "post", plan),
       ])
     : [
         { used: 0, limit: FREE_LIMITS.cv_tailor, remaining: FREE_LIMITS.cv_tailor, limitReached: false },
@@ -38,6 +40,8 @@ export default async function DashboardPage() {
           remaining: FREE_LIMITS.linkedin_review,
           limitReached: false,
         },
+        { used: 0, limit: FREE_LIMITS.networking, remaining: FREE_LIMITS.networking, limitReached: false },
+        { used: 0, limit: FREE_LIMITS.post, remaining: FREE_LIMITS.post, limitReached: false },
       ];
 
   const TOOLS: {
@@ -61,6 +65,20 @@ export default async function DashboardPage() {
       description: "Adapte seu currículo para cada vaga usando palavras-chave da job description.",
       href: "/tools/cv-tailor",
       remainingLabel: remainingLabel(cvTailorUsage.remaining, cvTailorUsage.limit),
+    },
+    {
+      icon: "users",
+      name: "Mensagens de Networking",
+      description: "Aborde recrutadores e hiring managers com mensagens que constroem relacionamento.",
+      href: "/tools/networking",
+      remainingLabel: remainingLabel(networkingUsage.remaining, networkingUsage.limit),
+    },
+    {
+      icon: "pen-square",
+      name: "Criador de Posts",
+      description: "Transforme suas experiências reais em posts que constroem autoridade no seu alvo.",
+      href: "/tools/posts",
+      remainingLabel: remainingLabel(postUsage.remaining, postUsage.limit),
     },
   ];
 

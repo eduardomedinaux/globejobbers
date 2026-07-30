@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, ScanSearch, History } from "lucide-react";
+import { LayoutDashboard, FileText, ScanSearch, History, Users, PenSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // `mobileLabel` mais curto que `label` — os itens na bottom nav não cabem com
@@ -15,6 +15,8 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", mobileLabel: "Início", icon: LayoutDashboard },
   { href: "/tools/linkedin-review", label: "LinkedIn Review", mobileLabel: "LinkedIn", icon: ScanSearch },
   { href: "/tools/cv-tailor", label: "CV Tailor", mobileLabel: "CV", icon: FileText },
+  { href: "/tools/networking", label: "Networking", mobileLabel: "Network", icon: Users },
+  { href: "/tools/posts", label: "Posts", mobileLabel: "Posts", icon: PenSquare },
   { href: "/history", label: "Histórico", mobileLabel: "Histórico", icon: History },
 ];
 

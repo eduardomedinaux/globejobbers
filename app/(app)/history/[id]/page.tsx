@@ -9,6 +9,8 @@ import { CvTailorResultView } from "@/components/cv-tailor-result";
 import { CvTailorResultV2View } from "@/components/cv-tailor-result-v2";
 import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
 import { HeadlineMarketResultView } from "@/components/market-profile/headline-market-result";
+import { NetworkingResultView } from "@/components/tools/networking-result";
+import { PostResultView } from "@/components/tools/post-result";
 import { TOOL_TYPE_LABELS } from "@/lib/types";
 import type {
   CvTailorResult,
@@ -16,6 +18,8 @@ import type {
   HeadlineAnalysisResult,
   LinkedinReviewResult,
   MarketHeadlineResult,
+  NetworkingResult,
+  PostResult,
 } from "@/lib/types";
 
 export default async function HistoryDetailPage({ params }: { params: { id: string } }) {
@@ -80,6 +84,14 @@ export default async function HistoryDetailPage({ params }: { params: { id: stri
 
       {analysis.tool_type === "linkedin_review" && (
         <LinkedinReviewResultView result={analysis.output_data as LinkedinReviewResult} />
+      )}
+
+      {analysis.tool_type === "networking" && (
+        <NetworkingResultView result={analysis.output_data as NetworkingResult} />
+      )}
+
+      {analysis.tool_type === "post" && (
+        <PostResultView result={analysis.output_data as PostResult} />
       )}
     </div>
   );

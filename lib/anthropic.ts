@@ -23,6 +23,12 @@ import {
   LINKEDIN_REVIEW_TOOL,
   MARKET_PROFILE_SYSTEM_PROMPT,
   MARKET_PROFILE_TOOL,
+  NETWORKING_SYSTEM_PROMPT,
+  NETWORKING_TOOL,
+  POST_SYSTEM_PROMPT,
+  POST_TOOL,
+  buildNetworkingUserPrompt,
+  buildPostUserPrompt,
   buildHeadlineFromMarketUserPrompt,
   buildMarketProfileUserPrompt,
 } from "@/lib/prompts";
@@ -43,6 +49,9 @@ import {
   type MarketProfileExtraction,
   type MarketProfileIdentified,
   type MarketProfileKeywords,
+  type NetworkingResult,
+  type PostResult,
+  type PostVariant,
   type Subscores,
   type TargetMarket,
 } from "@/lib/types";
@@ -660,4 +669,128 @@ export async function rewriteCvForJob(
   }
 
   return validateCvRewriteOutput(toolUse.input, requirements);
+}
+
+// --- Mensagens de Networking + Criador de Posts (apoio à mentoria) ---
+
+function validateNetworkingResult(raw: unknown): NetworkingResult {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+  const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+  // 300 chars é o limite REAL da nota de conexão do LinkedIn — cortar aqui
+  // garante que o usuário nunca copia algo que não cabe.
+  const connectionNote = str(obj.connectionNote, 300);
+  const followUpMessage = str(obj.followUpMessage, 1500);
+  const inmailVersion = str(obj.inmailVersion, 3000);
+  if (!connectionNote || !followUpMessage || !inmailVersion) {
+    throw new Error("A IA não retornou as três mensagens.");
+  }
+
+  return {
+    kind: "networking",
+    connectionNote,
+    followUpMessage,
+    inmailVersion,
+    rationale: str(obj.rationale, 400),
+  };
+}
+
+/** Mensagens de networking (conexão ≤300 chars + follow-up + InMail). */
+export async function generateNetworkingMessages(
+  recipient: string,
+  company: string,
+  jobContext: string,
+  personalContext: string,
+  language: "en" | "pt",
+  profile: MarketProfile | null,
+): Promise<NetworkingResult> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 1500,
+    temperature: 0,
+    system: NETWORKING_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildNetworkingUserPrompt(
+          recipient,
+          company,
+          jobContext,
+          personalContext,
+          language,
+          profile,
+        ),
+      },
+    ],
+    tools: [NETWORKING_TOOL],
+    tool_choice: { type: "tool", name: NETWORKING_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateNetworkingResult(toolUse.input);
+}
+
+const MAX_POST_LENGTH = 3000; // limite do LinkedIn
+
+function validatePostResult(raw: unknown): PostResult {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+
+  const variants: PostVariant[] = (Array.isArray(obj.variants) ? obj.variants : [])
+    .filter((v): v is Record<string, unknown> => typeof v === "object" && v !== null)
+    .map((v) => ({
+      style: v.style === "insight" ? ("insight" as const) : ("story" as const),
+      text: (typeof v.text === "string" ? v.text : "").trim().slice(0, MAX_POST_LENGTH),
+    }))
+    .filter((v) => v.text.length > 0)
+    .slice(0, 2);
+
+  if (variants.length === 0) {
+    throw new Error("A IA não retornou nenhum post.");
+  }
+
+  const hashtags = (Array.isArray(obj.hashtags) ? obj.hashtags : [])
+    .filter((h): h is string => typeof h === "string" && h.trim().length > 0)
+    .map((h) => h.trim().replace(/^#/, "").slice(0, 40))
+    .slice(0, 5);
+
+  return {
+    kind: "post",
+    variants,
+    hashtags,
+    rationale: (typeof obj.rationale === "string" ? obj.rationale : "").slice(0, 400),
+  };
+}
+
+/** Criador de posts (2 variações: story + insight) a partir de tema real do usuário. */
+export async function generatePost(
+  topic: string,
+  language: "en" | "pt",
+  profile: MarketProfile | null,
+): Promise<PostResult> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 2000,
+    temperature: 0,
+    system: POST_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildPostUserPrompt(topic, language, profile) }],
+    tools: [POST_TOOL],
+    tool_choice: { type: "tool", name: POST_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validatePostResult(toolUse.input);
 }

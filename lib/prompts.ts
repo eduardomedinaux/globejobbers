@@ -916,3 +916,193 @@ export const CV_REWRITE_TOOL: Anthropic.Tool = {
     required: ["rewrittenCv", "changes", "evidencedTerms", "recommendations"],
   },
 };
+
+// --- Mensagens de Networking (apoio direto à mentoria) ---
+//
+// Metodologia da casa: mensagem curta, específica, que DÁ antes de pedir —
+// nunca pedir emprego na primeira mensagem, nunca bajular. Consome o Perfil
+// de Mercado quando existe (o alvo real do usuário).
+
+function marketProfileBlock(profile: MarketProfile | null | undefined): string {
+  if (!profile) return "";
+  const top = (
+    [
+      ...profile.keywords.hardSkills,
+      ...profile.keywords.tools,
+      ...profile.keywords.atsTerms,
+    ] as const
+  )
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+    .map((k) => k.term)
+    .join(", ");
+  return `
+
+PERFIL DE MERCADO DO USUÁRIO (alvo extraído das vagas que ele quer conquistar):
+- Cargo-alvo: ${profile.targetRole}
+- Senioridade: ${profile.seniority}
+- Mercado: ${profile.targetMarket}
+${profile.currentRole ? `- Cargo atual: ${profile.currentRole}\n` : ""}- Principais keywords do alvo: ${top}
+`;
+}
+
+export const NETWORKING_SYSTEM_PROMPT = `Você é um especialista em networking profissional para o mercado
+internacional, especializado em ajudar profissionais brasileiros a construir
+relacionamentos que levam a vagas remotas pagas em dólar.
+
+O usuário quer abordar uma pessoa no LinkedIn. Gere TRÊS peças:
+
+1. "connectionNote": a nota que acompanha o pedido de conexão.
+   - MÁXIMO DE 300 CARACTERES (limite real do LinkedIn — inegociável).
+   - Específica pra pessoa/empresa/contexto informados. Zero template genérico.
+   - NÃO pede emprego, NÃO pede favor, NÃO bajula ("adorei seu perfil").
+   - Dá um motivo verdadeiro pra conexão (interesse comum, trabalho da
+     pessoa/empresa, contexto informado pelo usuário).
+2. "followUpMessage": mensagem pra DEPOIS do aceite (2-4 frases).
+   - Continua a conversa dando valor ou fazendo uma pergunta específica e
+     fácil de responder. Ainda NÃO pede emprego/indicação.
+3. "inmailVersion": versão longa (InMail/e-mail, 4-8 frases) pra quando não
+   há conexão possível — pode ser um pouco mais direta sobre o interesse na
+   empresa/vaga, mas sempre levando com o que o usuário OFERECE.
+
+Regras para TODAS:
+- No idioma pedido. Naturais, humanas, sem corporativês nem buzzword.
+- Use o Perfil de Mercado (quando fornecido) pra posicionar o usuário no
+  cargo-alvo — mas sem despejar keywords: no máximo 1-2, onde soar natural.
+- NÃO invente experiências, projetos ou conquistas do usuário. Use apenas o
+  contexto que ele deu; se faltar contexto pessoal, escreva de forma que
+  funcione sem ele (sem placeholder estranho).
+- Adapte o tom ao destinatário: recrutador (direto, sinaliza fit),
+  hiring manager (interesse no problema do time), funcionário da empresa
+  (curiosidade genuína sobre a experiência dele), conexão em comum/alumni
+  (o vínculo comum primeiro).
+
+Em "rationale", explique em 1-2 frases (pt-BR) a estratégia da abordagem.
+
+Responda SEMPRE chamando a ferramenta "submit_networking_messages". Não
+escreva texto fora da chamada da ferramenta.`;
+
+const NETWORKING_RECIPIENT_PROMPT_LABELS: Record<string, string> = {
+  recruiter: "Recrutador(a)",
+  hiring_manager: "Hiring manager da vaga",
+  employee: "Funcionário(a) da empresa-alvo",
+  alumni: "Conexão em comum / alumni",
+};
+
+export function buildNetworkingUserPrompt(
+  recipient: string,
+  company: string,
+  jobContext: string,
+  personalContext: string,
+  language: "en" | "pt",
+  profile: MarketProfile | null,
+): string {
+  return `Destinatário: ${NETWORKING_RECIPIENT_PROMPT_LABELS[recipient] ?? recipient}
+${company ? `Empresa-alvo: ${company}\n` : ""}${jobContext ? `Vaga/contexto da oportunidade:\n"""\n${jobContext}\n"""\n` : ""}${personalContext ? `Contexto pessoal do usuário (gancho real pra abordagem):\n"""\n${personalContext}\n"""\n` : ""}Idioma das mensagens: ${language === "pt" ? "português" : "inglês"}
+${marketProfileBlock(profile)}
+Gere as três peças e chame "submit_networking_messages".`;
+}
+
+export const NETWORKING_TOOL: Anthropic.Tool = {
+  name: "submit_networking_messages",
+  description:
+    "Envia as mensagens de networking: nota de conexão (≤300 chars), follow-up e versão InMail.",
+  input_schema: {
+    type: "object",
+    properties: {
+      connectionNote: {
+        type: "string",
+        description: "Nota do pedido de conexão — MÁXIMO 300 caracteres.",
+      },
+      followUpMessage: { type: "string", description: "Mensagem pra depois do aceite." },
+      inmailVersion: { type: "string", description: "Versão longa (InMail/e-mail)." },
+      rationale: { type: "string", description: "1-2 frases em pt-BR explicando a estratégia." },
+    },
+    required: ["connectionNote", "followUpMessage", "inmailVersion", "rationale"],
+  },
+};
+
+// --- Criador de Posts (apoio direto à mentoria) ---
+//
+// Posts que constroem autoridade nas keywords do mercado-alvo, a partir de
+// uma história/tema REAL do usuário. Nunca inventamos vivência — a matéria-
+// prima é o que ele contou.
+
+export const POST_SYSTEM_PROMPT = `Você é um estrategista de conteúdo de LinkedIn especializado em posicionar
+profissionais brasileiros para recrutadores e hiring managers internacionais.
+
+O usuário vai contar um tema, história ou aprendizado REAL dele. Gere DUAS
+variações de post de LinkedIn:
+
+1. "story": narrativa pessoal — abre com um gancho forte na primeira linha
+   (é o que aparece antes do "ver mais"), conta a história em frases curtas
+   com espaçamento, fecha com a lição + uma pergunta que convida comentário.
+2. "insight": direto ao ponto — a lição/opinião como abertura provocativa,
+   3-5 pontos curtos de sustentação, fechamento com posição clara.
+
+Regras para AMBAS:
+- Matéria-prima é EXCLUSIVAMENTE o que o usuário contou. NÃO invente fatos,
+  números, empresas, resultados ou detalhes que ele não deu.
+- No idioma pedido (posts pro mercado internacional performam em inglês).
+- Use o Perfil de Mercado (quando fornecido) pra angular o post pro
+  cargo-alvo: vocabulário e keywords do mercado onde soar natural (1-3 no
+  máximo — autoridade, não keyword stuffing).
+- Formato LinkedIn: linhas curtas, parágrafos de 1-2 frases, sem headers de
+  markdown. Entre 600 e 1300 caracteres por variação.
+- Sem clickbait vazio, sem "agree?", sem emoji em excesso (máximo 2-3, só
+  onde agregam).
+
+Em "hashtags", sugira 3-5 hashtags relevantes pro alvo (sem #, só o termo).
+Em "rationale", explique em 1-2 frases (pt-BR) o posicionamento escolhido.
+
+Responda SEMPRE chamando a ferramenta "submit_post". Não escreva texto fora
+da chamada da ferramenta.`;
+
+export function buildPostUserPrompt(
+  topic: string,
+  language: "en" | "pt",
+  profile: MarketProfile | null,
+): string {
+  return `Tema/história/aprendizado contado pelo usuário:
+"""
+${topic}
+"""
+
+Idioma do post: ${language === "pt" ? "português" : "inglês"}
+${marketProfileBlock(profile)}
+Gere as duas variações e chame "submit_post".`;
+}
+
+export const POST_TOOL: Anthropic.Tool = {
+  name: "submit_post",
+  description:
+    "Envia as duas variações de post de LinkedIn (story e insight) com hashtags.",
+  input_schema: {
+    type: "object",
+    properties: {
+      variants: {
+        type: "array",
+        minItems: 2,
+        maxItems: 2,
+        items: {
+          type: "object",
+          properties: {
+            style: { type: "string", enum: ["story", "insight"] },
+            text: { type: "string", description: "O post completo, 600-1300 caracteres." },
+          },
+          required: ["style", "text"],
+        },
+      },
+      hashtags: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 3,
+        maxItems: 5,
+        description: "Hashtags sem o símbolo #.",
+      },
+      rationale: { type: "string", description: "1-2 frases em pt-BR." },
+    },
+    required: ["variants", "hashtags", "rationale"],
+  },
+};

@@ -188,3 +188,20 @@ grant select, insert, update on public.pro_grants to service_role;
 --   select email, plan, plan_expires_at from public.profiles
 --   where plan = 'pro' and (plan_expires_at is null or plan_expires_at > now());
 -- ----------------------------------------------------------------------------
+
+-- ============================================================================
+-- Expansão de ferramentas (Networking, Posts — e as próximas levas)
+-- ============================================================================
+--
+-- O CHECK original de analyses.tool_type só aceitava as 3 primeiras
+-- ferramentas. Recriamos com TODOS os tool_types planejados de uma vez
+-- (About, Cover Letter etc. entram sem nova migração).
+
+alter table public.analyses drop constraint if exists analyses_tool_type_check;
+alter table public.analyses add constraint analyses_tool_type_check check (
+  tool_type in (
+    'headline', 'cv_tailor', 'linkedin_review',
+    'networking', 'post',
+    'about', 'experience', 'cover_letter', 'interview_prep'
+  )
+);

@@ -54,13 +54,20 @@ export interface LeadPayload {
 // --- Fase 2 (SaaS): ferramentas logadas, histórico e limites de uso ---
 
 /** Identifica a ferramenta em `analyses.tool_type` e em lib/usage.ts. */
-export type ToolType = "headline" | "cv_tailor" | "linkedin_review";
+export type ToolType =
+  | "headline"
+  | "cv_tailor"
+  | "linkedin_review"
+  | "networking"
+  | "post";
 
 /** Label de exibição por ferramenta (ver app/(app)/history, dashboard). */
 export const TOOL_TYPE_LABELS: Record<ToolType, string> = {
   headline: "Headline Optimizer",
   cv_tailor: "CV Tailor",
   linkedin_review: "LinkedIn Review",
+  networking: "Mensagens de Networking",
+  post: "Criador de Posts",
 };
 
 /**
@@ -319,4 +326,54 @@ export interface CvTailorResultV2 {
   changes: CvChange[];
   rewrittenCv: string;
   recommendations: string[];
+}
+
+// --- Mensagens de Networking (apoio direto à mentoria) ---
+//
+// Metodologia: mensagem curta, específica e sem pedir emprego de cara.
+// Consome o Perfil de Mercado quando existe (posicionamento pro alvo).
+
+export type NetworkingRecipient = "recruiter" | "hiring_manager" | "employee" | "alumni";
+
+export const NETWORKING_RECIPIENT_OPTIONS: { value: NetworkingRecipient; label: string }[] = [
+  { value: "recruiter", label: "Recrutador(a)" },
+  { value: "hiring_manager", label: "Hiring manager da vaga" },
+  { value: "employee", label: "Funcionário(a) da empresa-alvo" },
+  { value: "alumni", label: "Conexão em comum / alumni" },
+];
+
+export interface NetworkingResult {
+  kind: "networking";
+  /** Nota de conexão — máx. 300 caracteres (limite real do LinkedIn). */
+  connectionNote: string;
+  /** Mensagem de follow-up após o aceite (dar antes de pedir). */
+  followUpMessage: string;
+  /** Versão longa para InMail/e-mail. */
+  inmailVersion: string;
+  /** 1-2 frases (pt-BR) explicando a estratégia da abordagem. */
+  rationale: string;
+}
+
+// --- Criador de Posts (apoio direto à mentoria) ---
+//
+// Posts que constroem autoridade nas keywords do mercado-alvo, a partir de
+// uma história/tema REAL contado pelo usuário — nunca inventamos vivência.
+
+export interface PostVariant {
+  /** "story": narrativa pessoal; "insight": opinião/lição direta. */
+  style: "story" | "insight";
+  text: string;
+}
+
+export const POST_STYLE_LABELS: Record<PostVariant["style"], string> = {
+  story: "Narrativa pessoal",
+  insight: "Insight direto",
+};
+
+export interface PostResult {
+  kind: "post";
+  variants: PostVariant[];
+  hashtags: string[];
+  /** 1-2 frases (pt-BR) explicando o posicionamento escolhido. */
+  rationale: string;
 }

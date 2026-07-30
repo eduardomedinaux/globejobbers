@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, FileText, ScanSearch, type LucideIcon } from "lucide-react";
+import { Sparkles, FileText, ScanSearch, Users, PenSquare, type LucideIcon } from "lucide-react";
 import { track } from "@/lib/analytics";
 
 const ICONS = {
   sparkles: Sparkles,
   "file-text": FileText,
   "scan-search": ScanSearch,
+  users: Users,
+  "pen-square": PenSquare,
 } satisfies Record<string, LucideIcon>;
 
 export type ToolIcon = keyof typeof ICONS;

@@ -7,6 +7,8 @@ export const FREE_LIMITS: Record<ToolType, number> = {
   headline: 3,
   cv_tailor: 2,
   linkedin_review: 1,
+  networking: 3,
+  post: 3,
 };
 
 /**
@@ -18,6 +20,8 @@ export const PRO_LIMITS: Record<ToolType, number> = {
   headline: 30,
   cv_tailor: 20,
   linkedin_review: 10,
+  networking: 30,
+  post: 30,
 };
 
 export const PLAN_LIMITS: Record<Plan, Record<ToolType, number>> = {

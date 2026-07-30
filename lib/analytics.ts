@@ -48,7 +48,17 @@ export type AnalyticsEvent =
   | "job_url_imported"
   | "job_url_import_failed"
   // Plano Pro (concessões beta/mentoria — ver lib/plan.ts e pro_grants)
-  | "pro_grant_claimed";
+  | "pro_grant_claimed"
+  // Mensagens de Networking
+  | "networking_viewed"
+  | "networking_started"
+  | "networking_completed"
+  | "networking_failed"
+  // Criador de Posts
+  | "post_viewed"
+  | "post_started"
+  | "post_completed"
+  | "post_failed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);
