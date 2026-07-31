@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { generateLinkedinReview } from "@/lib/anthropic";
 import { getActiveMarketProfile } from "@/lib/market-profile";
+import { getActiveDocument, saveUserDocument } from "@/lib/user-documents";
 import { getUsageStatus } from "@/lib/usage";
 import { extractTextFromPdf } from "@/lib/pdf";
 import { validateProfileText } from "@/lib/profile-validation";
@@ -36,32 +37,47 @@ export async function POST(request: NextRequest) {
   }
 
   let profileText: string;
+  let uploadedFilename: string | null = null;
   try {
     const formData = await request.formData();
     const file = formData.get("file");
+    const useSaved = formData.get("useSaved") === "1";
 
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json(
-        { error: "Envie o PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)." },
-        { status: 400 },
-      );
-    }
-    if (file.type !== "application/pdf") {
-      return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
-    }
+    if (useSaved) {
+      // Dashboard vivo: análise em 1 clique usando o perfil salvo.
+      const doc = await getActiveDocument(user.id, "linkedin_pdf");
+      if (!doc) {
+        return NextResponse.json(
+          { error: "Você ainda não tem um perfil salvo — envie o PDF do LinkedIn." },
+          { status: 400 },
+        );
+      }
+      profileText = doc.content;
+    } else {
+      if (!(file instanceof File) || file.size === 0) {
+        return NextResponse.json(
+          { error: "Envie o PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)." },
+          { status: 400 },
+        );
+      }
+      if (file.type !== "application/pdf") {
+        return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
+      }
 
-    const buffer = await file.arrayBuffer();
-    profileText = await extractTextFromPdf(buffer);
+      uploadedFilename = file.name || "linkedin.pdf";
+      const buffer = await file.arrayBuffer();
+      profileText = await extractTextFromPdf(buffer);
 
-    const meaningfulLength = profileText.replace(/\s+/g, "").length;
-    if (meaningfulLength < MIN_PDF_TEXT_LENGTH) {
-      return NextResponse.json(
-        {
-          error:
-            "Não consegui ler o texto desse PDF. Ele pode ser uma imagem escaneada. Tente gerar o PDF de novo pelo LinkedIn (Mais → Salvar como PDF) e suba aqui.",
-        },
-        { status: 400 },
-      );
+      const meaningfulLength = profileText.replace(/\s+/g, "").length;
+      if (meaningfulLength < MIN_PDF_TEXT_LENGTH) {
+        return NextResponse.json(
+          {
+            error:
+              "Não consegui ler o texto desse PDF. Ele pode ser uma imagem escaneada. Tente gerar o PDF de novo pelo LinkedIn (Mais → Salvar como PDF) e suba aqui.",
+          },
+          { status: 400 },
+        );
+      }
     }
   } catch {
     return NextResponse.json({ error: "Não foi possível ler o conteúdo enviado." }, { status: 400 });
@@ -72,6 +88,12 @@ export async function POST(request: NextRequest) {
   const validationError = validateProfileText(profileText);
   if (validationError) {
     return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
+  // Captura passiva (dashboard vivo): o PDF subido aqui VIRA o perfil salvo
+  // do usuário — ele nunca precisa subir duas vezes. Falha não bloqueia.
+  if (uploadedFilename) {
+    await saveUserDocument(user.id, "linkedin_pdf", profileText, uploadedFilename);
   }
 
   // Falha na leitura do perfil de mercado NÃO bloqueia o review (helper

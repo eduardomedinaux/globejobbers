@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
 import type { CvTailorResultV2 } from "@/lib/types";
+import type { UserDocumentSummary } from "@/lib/user-documents";
 
-type CvInputMode = "pdf" | "text";
+type CvInputMode = "saved" | "pdf" | "text";
 type Language = "en" | "pt";
 type Step = "input" | "loading" | "result" | "limit_reached";
 
@@ -32,9 +33,23 @@ export default function CvTailorPage() {
   const [language, setLanguage] = useState<Language>("en");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [savedDoc, setSavedDoc] = useState<UserDocumentSummary | null>(null);
 
   useEffect(() => {
     track("cv_tailor_viewed");
+    // Dashboard vivo: CV salvo (preferido) ou perfil do LinkedIn salvo — a
+    // pessoa só cola a vaga e clica. Upload continua disponível (e o que
+    // subir vira o novo CV salvo).
+    fetch("/api/profile-document")
+      .then((res) => (res.ok ? res.json() : { cv: null, linkedinPdf: null }))
+      .then((data) => {
+        const doc = (data?.cv ?? data?.linkedinPdf ?? null) as UserDocumentSummary | null;
+        if (doc) {
+          setSavedDoc(doc);
+          setCvMode("saved");
+        }
+      })
+      .catch(() => setSavedDoc(null));
   }, []);
 
   async function handleSubmit() {
@@ -43,7 +58,9 @@ export default function CvTailorPage() {
     track("cv_tailor_started");
 
     const formData = new FormData();
-    if (cvMode === "pdf" && cvFile) {
+    if (cvMode === "saved") {
+      formData.append("cvSource", "saved");
+    } else if (cvMode === "pdf" && cvFile) {
       formData.append("cvFile", cvFile);
     } else {
       formData.append("cvText", cvText);
@@ -86,8 +103,11 @@ export default function CvTailorPage() {
   }
 
   const canSubmit =
-    (cvMode === "pdf" ? cvFile !== null : cvText.trim().length > 0) &&
-    jobDescription.trim().length > 0;
+    (cvMode === "saved"
+      ? savedDoc !== null
+      : cvMode === "pdf"
+        ? cvFile !== null
+        : cvText.trim().length > 0) && jobDescription.trim().length > 0;
 
   return (
     <div className="mx-auto flex max-w-[680px] flex-col gap-6">
@@ -120,6 +140,17 @@ export default function CvTailorPage() {
             <div className="flex items-center justify-between">
               <Label>Seu CV atual</Label>
               <div className="flex gap-1 rounded-lg bg-[#F4F4F0] p-1">
+                {savedDoc && (
+                  <button
+                    type="button"
+                    onClick={() => setCvMode("saved")}
+                    className={`rounded-md px-2.5 py-1 text-[12.5px] font-medium transition-colors ${
+                      cvMode === "saved" ? "bg-white text-[#0F4D4A] shadow-sm" : "text-[#6E6E72]"
+                    }`}
+                  >
+                    Usar salvo
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setCvMode("pdf")}
@@ -141,7 +172,20 @@ export default function CvTailorPage() {
               </div>
             </div>
 
-            {cvMode === "pdf" ? (
+            {cvMode === "saved" && savedDoc ? (
+              <div className="rounded-lg border border-[#EAEAE4] bg-white px-4 py-3">
+                <p className="text-[13.5px] text-[#3F3F43]">
+                  Usando: <strong>{savedDoc.filename}</strong>
+                  {savedDoc.kind === "linkedin_pdf" && " (seu perfil do LinkedIn salvo)"}
+                </p>
+                {savedDoc.kind === "linkedin_pdf" && (
+                  <p className="mt-1 text-[12.5px] leading-[1.5] text-[#A0A09B]">
+                    Funciona bem — mas pra um match ainda mais preciso, envie seu CV completo em
+                    PDF (ele fica salvo pra próxima).
+                  </p>
+                )}
+              </div>
+            ) : cvMode === "pdf" ? (
               <>
                 <input
                   ref={fileInputRef}

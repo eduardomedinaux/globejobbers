@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { analyzeCvAgainstJob, rewriteCvForJob } from "@/lib/anthropic";
 import { computeMatch } from "@/lib/match";
+import { getActiveDocument, saveUserDocument } from "@/lib/user-documents";
 import { getUsageStatus } from "@/lib/usage";
 import { extractTextFromPdf } from "@/lib/pdf";
 import { validateProfileText } from "@/lib/profile-validation";
@@ -61,18 +62,34 @@ export async function POST(request: NextRequest) {
   let cvText: string;
   let jobDescription: string;
   let language: "en" | "pt";
+  let uploadedFilename: string | null = null;
 
   try {
     const formData = await request.formData();
     const file = formData.get("cvFile");
     const rawCvText = formData.get("cvText");
+    const cvSource = String(formData.get("cvSource") ?? "");
     jobDescription = String(formData.get("jobDescription") ?? "").trim();
     language = formData.get("language") === "pt" ? "pt" : "en";
 
-    if (file instanceof File && file.size > 0) {
+    if (cvSource === "saved") {
+      // Dashboard vivo: usa o documento salvo — CV dedicado se houver,
+      // senão o perfil do LinkedIn (menos denso, mas funciona).
+      const doc =
+        (await getActiveDocument(user.id, "cv")) ??
+        (await getActiveDocument(user.id, "linkedin_pdf"));
+      if (!doc) {
+        return NextResponse.json(
+          { error: "Você ainda não tem um documento salvo — envie seu CV em PDF." },
+          { status: 400 },
+        );
+      }
+      cvText = doc.content;
+    } else if (file instanceof File && file.size > 0) {
       if (file.type !== "application/pdf") {
         return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
       }
+      uploadedFilename = file.name || "cv.pdf";
       const buffer = await file.arrayBuffer();
       cvText = await extractTextFromPdf(buffer);
     } else {
@@ -88,6 +105,12 @@ export async function POST(request: NextRequest) {
   const cvValidationError = validateProfileText(cvText);
   if (cvValidationError) {
     return NextResponse.json({ error: cvValidationError }, { status: 400 });
+  }
+
+  // Captura passiva (dashboard vivo): o CV subido aqui vira o CV salvo do
+  // usuário — as próximas adaptações rodam sem re-upload. Falha não bloqueia.
+  if (uploadedFilename) {
+    await saveUserDocument(user.id, "cv", cvText, uploadedFilename);
   }
   if (jobDescription.length < MIN_JOB_DESCRIPTION_LENGTH) {
     return NextResponse.json(

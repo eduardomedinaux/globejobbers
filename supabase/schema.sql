@@ -205,3 +205,29 @@ alter table public.analyses add constraint analyses_tool_type_check check (
     'about', 'experience', 'cover_letter', 'interview_prep'
   )
 );
+
+-- ============================================================================
+-- Dashboard vivo — Perfil Profissional do usuário (user_documents)
+-- ============================================================================
+--
+-- Segundo ativo durável (o primeiro é market_profiles): o TEXTO extraído do
+-- PDF do LinkedIn (kind 'linkedin_pdf') e/ou do CV (kind 'cv') que o usuário
+-- subiu. Coletado no dashboard OU passivamente pelo uso (subiu PDF no
+-- Review → vira o perfil salvo; subiu CV no CV Tailor → vira o CV salvo).
+-- O ativo de cada tipo é o mais recente. Guardamos texto, não arquivo.
+
+create table if not exists public.user_documents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  kind text not null check (kind in ('linkedin_pdf', 'cv')),
+  filename text,
+  content text not null,
+  chars integer not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists user_documents_user_kind_idx
+  on public.user_documents (user_id, kind, created_at desc);
+
+alter table public.user_documents enable row level security;
+grant select, insert on public.user_documents to service_role;

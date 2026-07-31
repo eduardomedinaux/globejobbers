@@ -6,6 +6,7 @@ import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
 import { TARGET_MARKET_LABELS, type LinkedinReviewResult, type MarketProfile } from "@/lib/types";
+import type { UserDocumentSummary } from "@/lib/user-documents";
 
 type Step = "input" | "loading" | "result" | "limit_reached";
 
@@ -26,6 +27,8 @@ export function LinkedinReviewTool() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(undefined);
+  const [savedDoc, setSavedDoc] = useState<UserDocumentSummary | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   useEffect(() => {
     track("linkedin_review_viewed");
@@ -41,15 +44,24 @@ export function LinkedinReviewTool() {
         );
       })
       .catch(() => setActiveTarget(null));
+    // Perfil salvo (dashboard vivo): quando existe, o review roda em 1 clique.
+    fetch("/api/profile-document")
+      .then((res) => (res.ok ? res.json() : { linkedinPdf: null }))
+      .then((data) => setSavedDoc((data?.linkedinPdf ?? null) as UserDocumentSummary | null))
+      .catch(() => setSavedDoc(null));
   }, []);
 
-  async function handleSubmit() {
+  async function handleSubmit(useSaved: boolean) {
     setStep("loading");
     setError(null);
-    track("linkedin_review_started", { mode: "pdf" });
+    track("linkedin_review_started", { mode: useSaved ? "saved" : "pdf" });
 
     const formData = new FormData();
-    if (file) formData.append("file", file);
+    if (useSaved) {
+      formData.append("useSaved", "1");
+    } else if (file) {
+      formData.append("file", file);
+    }
 
     try {
       const res = await fetch("/api/tools/linkedin-review", { method: "POST", body: formData });
@@ -106,34 +118,61 @@ export function LinkedinReviewTool() {
             </div>
           )}
 
-          {/* PDF-only (mesma decisão do MVP público): colar o perfil inteiro
-              é impraticável e gera input de qualidade imprevisível — o PDF
-              nativo do LinkedIn é o perfil completo e estruturado. */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[#1B1B1E]">
-              PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="rounded-lg border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-3 py-4 text-[13.5px] text-[#6E6E72] file:mr-3 file:rounded-md file:border-0 file:bg-[#0F4D4A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-medium file:text-white"
-            />
-            <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
-              Seus arquivos são usados apenas para gerar sua análise e não são compartilhados.
-            </p>
-          </div>
+          {/* Dashboard vivo: com perfil salvo, a análise é 1 clique. O upload
+              continua disponível (e o que for subido VIRA o novo perfil salvo). */}
+          {savedDoc && !showUpload ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-[#EAEAE4] bg-white p-5">
+              <p className="text-[14px] text-[#3F3F43]">
+                Perfil salvo: <strong>{savedDoc.filename}</strong>
+              </p>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button
+                onClick={() => handleSubmit(true)}
+                className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
+              >
+                Analisar meu perfil salvo
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowUpload(true)}
+                className="text-[13px] text-[#8A8A85] underline-offset-2 hover:text-[#3F3F43] hover:underline"
+              >
+                Meu LinkedIn mudou — enviar um PDF atualizado
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* PDF-only (mesma decisão do MVP público): colar o perfil inteiro
+                  é impraticável e gera input de qualidade imprevisível — o PDF
+                  nativo do LinkedIn é o perfil completo e estruturado. */}
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-[#1B1B1E]">
+                  PDF do seu perfil (LinkedIn → Mais → Salvar como PDF)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  className="rounded-lg border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-3 py-4 text-[13.5px] text-[#6E6E72] file:mr-3 file:rounded-md file:border-0 file:bg-[#0F4D4A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-medium file:text-white"
+                />
+                <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
+                  Seus arquivos são usados apenas para gerar sua análise e não são compartilhados.
+                  O PDF enviado fica salvo como seu perfil — as outras ferramentas não vão pedir de novo.
+                </p>
+              </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
-          >
-            Analisar meu perfil
-          </Button>
+              <Button
+                onClick={() => handleSubmit(false)}
+                disabled={!canSubmit}
+                className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
+              >
+                Analisar meu perfil
+              </Button>
+            </>
+          )}
         </>
       )}
 

@@ -58,7 +58,10 @@ export type AnalyticsEvent =
   | "post_viewed"
   | "post_started"
   | "post_completed"
-  | "post_failed";
+  | "post_failed"
+  // Dashboard vivo (ativos: Perfil de Mercado + perfil salvo)
+  | "profile_document_uploaded"
+  | "asset_mission_clicked";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

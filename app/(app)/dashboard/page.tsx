@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { ViewTracker } from "@/components/analytics/view-tracker";
+import { AssetCards } from "@/components/dashboard/asset-cards";
 import { ToolCard, type ToolIcon } from "@/components/dashboard/tool-card";
 import { getCurrentUser } from "@/lib/supabase-server";
+import { getActiveMarketProfile } from "@/lib/market-profile";
+import { getActiveDocument, toDocumentSummary } from "@/lib/user-documents";
 import { getPlanStatus } from "@/lib/plan";
 import { getUsageStatus, FREE_LIMITS } from "@/lib/usage";
 import { getRecentAnalyses } from "@/lib/history";
-import { TOOL_TYPE_LABELS } from "@/lib/types";
+import { TARGET_MARKET_LABELS, TOOL_TYPE_LABELS, type MarketKeyword } from "@/lib/types";
 
 function remainingLabel(remaining: number, limit: number) {
   return `${remaining} de ${limit} análise${limit === 1 ? "" : "s"} restante${remaining === 1 ? "" : "s"} este mês`;
@@ -22,6 +25,24 @@ export default async function DashboardPage() {
 
   // Plano efetivo buscado uma vez e repassado — evita 1 query por ferramenta.
   const plan = user ? (await getPlanStatus(user.id)).plan : "free";
+
+  // Os dois ativos do dashboard vivo (ver components/dashboard/asset-cards.tsx).
+  const [marketProfile, linkedinDoc] = user
+    ? await Promise.all([
+        getActiveMarketProfile(user.id),
+        getActiveDocument(user.id, "linkedin_pdf"),
+      ])
+    : [null, null];
+  const marketProfileCard = marketProfile
+    ? {
+        targetRole: marketProfile.targetRole,
+        marketLabel: TARGET_MARKET_LABELS[marketProfile.targetMarket],
+        keywordCount: Object.values(marketProfile.keywords).reduce(
+          (sum: number, list: MarketKeyword[]) => sum + list.length,
+          0,
+        ),
+      }
+    : null;
 
   // Headline não tem mais card próprio: virou aba do LinkedIn Review, e o
   // limite dela aparece dentro da própria aba.
@@ -94,6 +115,11 @@ export default async function DashboardPage() {
           internacionais.
         </p>
       </div>
+
+      <AssetCards
+        marketProfile={marketProfileCard}
+        document={linkedinDoc ? toDocumentSummary(linkedinDoc) : null}
+      />
 
       <div className="grid gap-5 sm:grid-cols-2">
         {TOOLS.map((tool) => (
