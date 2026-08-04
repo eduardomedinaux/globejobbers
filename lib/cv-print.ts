@@ -1,8 +1,10 @@
-// Transforma o texto puro do CV adaptado em HTML tipografado pra impressão
-// A4 (o "Baixar PDF" do CV Tailor). Parser heurístico leve — o CV vem da
-// nossa própria geração, com estrutura previsível: header (nome/título/
-// contato), seções em CAIXA ALTA, empresas seguidas de cargo e linha de
-// datas, bullets com "•". Tudo escapado: nada do texto é interpretado.
+// Parser do CV adaptado (texto puro → estrutura tipada) + render de
+// impressão A4 (o "Baixar PDF" do CV Tailor). O parser é compartilhado com
+// o preview formatado na tela (components/cv-tailor-result-v2.tsx).
+// Heurística leve — o CV vem da nossa própria geração, com estrutura
+// previsível: header (nome/título/contato), seções em CAIXA ALTA, empresas
+// seguidas de cargo e linha de datas, bullets com "•". No render HTML tudo
+// é escapado: nada do texto é interpretado.
 
 function escapeHtml(s: string): string {
   return s
@@ -20,11 +22,29 @@ const SECTION = /^[A-Z0-9][A-Z0-9 &+\/,·'-]{2,44}$/;
 const DATE_LINE = /\d{4}/;
 const DATE_HINT = /(–|—|\bto\b|\bpresent\b|\batual\b|\d{4}\s*[-–—]\s*\d{4})/i;
 
-type Block =
+export type CvBlock =
   | { type: "h2" | "p" | "li" | "org" | "role" | "meta"; text: string }
   | { type: "gap" };
 
-export function buildCvPrintHtml(cvText: string): string {
+export interface ParsedCv {
+  name?: string;
+  subtitle?: string;
+  contact: string[];
+  blocks: CvBlock[];
+}
+
+/** Remove as linhas divisórias ("---") do texto — usado no Copiar. */
+export function stripDividers(cvText: string): string {
+  return cvText
+    .replace(/\r/g, "")
+    .split("\n")
+    .filter((line) => !DIVIDER.test(line.trim()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function parseCvText(cvText: string): ParsedCv {
   const lines = cvText.replace(/\r/g, "").split("\n");
 
   // Header: primeiro bloco até a linha em branco (nome / título / contato).
@@ -36,8 +56,8 @@ export function buildCvPrintHtml(cvText: string): string {
     i++;
   }
 
-  // Corpo → blocos tipados.
-  const blocks: Block[] = [];
+  // Corpo → blocos tipados. Divisórias ("---") são descartadas.
+  const blocks: CvBlock[] = [];
   for (; i < lines.length; i++) {
     const line = lines[i].trim();
     if (line.length === 0 || DIVIDER.test(line)) {
@@ -70,8 +90,13 @@ export function buildCvPrintHtml(cvText: string): string {
     }
   }
 
-  // Render.
   const [name, subtitle, ...contact] = header;
+  return { name, subtitle, contact, blocks };
+}
+
+export function buildCvPrintHtml(cvText: string): string {
+  const { name, subtitle, contact, blocks } = parseCvText(cvText);
+
   let bodyHtml = "";
   if (name) bodyHtml += `<h1>${escapeHtml(name)}</h1>`;
   if (subtitle) bodyHtml += `<p class="subtitle">${escapeHtml(subtitle)}</p>`;

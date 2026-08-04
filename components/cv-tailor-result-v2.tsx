@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Check, Copy, Download, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { buildCvPrintHtml } from "@/lib/cv-print";
+import { buildCvPrintHtml, parseCvText, stripDividers } from "@/lib/cv-print";
 import type { CvMatchBreakdown, CvRequirement, CvTailorResultV2 } from "@/lib/types";
 
 function breakdownLabel(b: CvMatchBreakdown): string {
@@ -49,6 +49,94 @@ function RequirementPills({
 }
 
 /**
+ * Preview formatado do CV adaptado: usa o MESMO parser do PDF
+ * (lib/cv-print.ts), então tela e impressão contam a mesma história —
+ * nome grande, título em teal, seções em negrito, empresas em bold,
+ * datas discretas. As linhas divisórias ("---") não aparecem.
+ */
+function CvFormattedPreview({ cvText }: { cvText: string }) {
+  const parsed = useMemo(() => parseCvText(cvText), [cvText]);
+
+  const elements: React.ReactNode[] = [];
+  let key = 0;
+  let list: string[] = [];
+  const flushList = () => {
+    if (list.length === 0) return;
+    elements.push(
+      <ul key={key++} className="mb-2 mt-1 flex list-disc flex-col gap-1 pl-4 marker:text-[#B4B4AF]">
+        {list.map((item, i) => (
+          <li key={i} className="text-[13.5px] leading-[1.55] text-[#3F3F43]">
+            {item}
+          </li>
+        ))}
+      </ul>,
+    );
+    list = [];
+  };
+
+  for (const block of parsed.blocks) {
+    if (block.type === "li") {
+      list.push(block.text);
+      continue;
+    }
+    flushList();
+    if (block.type === "gap") continue;
+    if (block.type === "h2") {
+      elements.push(
+        <p
+          key={key++}
+          className="mb-1.5 mt-5 text-[12px] font-bold uppercase tracking-[0.08em] text-[#0F4D4A]"
+        >
+          {block.text}
+        </p>,
+      );
+    } else if (block.type === "org") {
+      elements.push(
+        <p key={key++} className="mt-3 text-[14px] font-bold text-[#1B1B1E]">
+          {block.text}
+        </p>,
+      );
+    } else if (block.type === "role") {
+      elements.push(
+        <p key={key++} className="text-[13.5px] font-semibold text-[#1B1B1E]">
+          {block.text}
+        </p>,
+      );
+    } else if (block.type === "meta") {
+      elements.push(
+        <p key={key++} className="mb-1 text-[12px] text-[#8A8A85]">
+          {block.text}
+        </p>,
+      );
+    } else {
+      elements.push(
+        <p key={key++} className="mb-1.5 text-[13.5px] leading-[1.6] text-[#3F3F43]">
+          {block.text}
+        </p>,
+      );
+    }
+  }
+  flushList();
+
+  return (
+    <div>
+      {parsed.name && (
+        <p className="text-[18px] font-bold tracking-[-0.01em] text-[#1B1B1E]">{parsed.name}</p>
+      )}
+      {parsed.subtitle && (
+        <p className="text-[14px] font-semibold text-[#0F4D4A]">{parsed.subtitle}</p>
+      )}
+      {parsed.contact.map((c, i) => (
+        <p key={i} className="text-[12px] text-[#8A8A85]">
+          {c}
+        </p>
+      ))}
+      {elements}
+    </div>
+  );
+}
+
+/**
  * Resultado do CV Tailor v2: match auditável (calculado em lib/match.ts, o
  * usuário vê a conta), o que a vaga procura, como o CV se encaixa (com a
  * regra de produto: "não encontrada" ≠ "adicione ao CV"), a estratégia da
@@ -63,7 +151,8 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
   const improved = result.matchAfter.percent > result.matchBefore.percent;
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(result.rewrittenCv);
+    // Copia o texto puro (cola limpo em Word/Notion), sem as divisórias "---".
+    await navigator.clipboard.writeText(stripDividers(result.rewrittenCv));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -227,9 +316,9 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
             </button>
           </div>
         </div>
-        <pre className="max-h-[420px] overflow-y-auto whitespace-pre-wrap text-[13.5px] leading-[1.6] text-[#1B1B1E]">
-          {result.rewrittenCv}
-        </pre>
+        <div className="max-h-[420px] overflow-y-auto rounded-xl border border-[#F0F0EA] bg-[#FDFDFB] px-5 py-4">
+          <CvFormattedPreview cvText={result.rewrittenCv} />
+        </div>
       </div>
 
       {/* Recomendações (o que só o candidato pode fazer) */}
