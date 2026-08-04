@@ -647,6 +647,7 @@ export async function rewriteCvForJob(
   requirements: CvRequirement[],
   language: "en" | "pt",
   violationTerms?: string[],
+  mustCompress?: boolean,
 ): Promise<CvRewriteOutput> {
   const response = await anthropic.messages.create({
     model: ANALYSIS_MODEL,
@@ -656,7 +657,14 @@ export async function rewriteCvForJob(
     messages: [
       {
         role: "user",
-        content: buildCvRewriteUserPrompt(cvText, job, requirements, language, violationTerms),
+        content: buildCvRewriteUserPrompt(
+          cvText,
+          job,
+          requirements,
+          language,
+          violationTerms,
+          mustCompress,
+        ),
       },
     ],
     tools: [CV_REWRITE_TOOL],

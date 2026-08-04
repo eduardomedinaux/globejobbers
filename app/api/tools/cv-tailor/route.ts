@@ -135,15 +135,33 @@ export async function POST(request: NextRequest) {
     .filter((r) => r.status === "missing")
     .map((r) => r.term);
 
-  // Etapa B + check anti-invenção (retry 1x; depois erro controlado)
+  // Etapa B + checks em código: anti-invenção (retry 1x → erro controlado)
+  // e limite de UMA PÁGINA (~3.500 chars alvo; retry de compressão 1x —
+  // se ainda vier longo, entrega mesmo assim e loga, comprimento não é
+  // questão de segurança).
+  const MAX_ONE_PAGE_CHARS = 4200;
   let rewrite;
   try {
     rewrite = await rewriteCvForJob(cvText, analysis.job, analysis.requirements, language);
 
     let invented = findInventedTerms(rewrite.rewrittenCv, cvText, missingTerms);
-    if (invented.length > 0) {
-      console.error("CV_TAILOR_INVENTION_DETECTED", { userId: user.id, invented, attempt: 1 });
-      rewrite = await rewriteCvForJob(cvText, analysis.job, analysis.requirements, language, invented);
+    const tooLong = rewrite.rewrittenCv.length > MAX_ONE_PAGE_CHARS;
+
+    if (invented.length > 0 || tooLong) {
+      if (invented.length > 0) {
+        console.error("CV_TAILOR_INVENTION_DETECTED", { userId: user.id, invented, attempt: 1 });
+      }
+      if (tooLong) {
+        console.warn("CV_TAILOR_TOO_LONG", { userId: user.id, chars: rewrite.rewrittenCv.length });
+      }
+      rewrite = await rewriteCvForJob(
+        cvText,
+        analysis.job,
+        analysis.requirements,
+        language,
+        invented.length > 0 ? invented : undefined,
+        tooLong,
+      );
       invented = findInventedTerms(rewrite.rewrittenCv, cvText, missingTerms);
       if (invented.length > 0) {
         // Decisão de produto: NUNCA entregar versão potencialmente
@@ -158,6 +176,9 @@ export async function POST(request: NextRequest) {
           },
           { status: 502 },
         );
+      }
+      if (rewrite.rewrittenCv.length > MAX_ONE_PAGE_CHARS) {
+        console.warn("CV_TAILOR_STILL_LONG", { userId: user.id, chars: rewrite.rewrittenCv.length });
       }
     }
   } catch (error) {

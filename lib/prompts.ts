@@ -816,10 +816,24 @@ Testing, o CV adaptado NÃO menciona A/B Testing. Se fizer falta, o lugar
 disso é em "recommendations" (ex.: "Se você tem experiência com A/B
 Testing que não está no CV, adicione — a vaga trata como obrigatório").
 
+REGRA DE FORMATO — UMA PÁGINA (inegociável):
+O CV adaptado DEVE caber em uma página A4: máximo de ~500 palavras
+(~3.500 caracteres). Cortar é parte da adaptação — relevância > completude.
+Estrutura obrigatória:
+- Header: nome, título posicionado pra vaga, contato (2-3 linhas).
+- Summary: 2-3 frases, direto no fit com ESTA vaga.
+- Skills: 3-4 linhas agrupadas (só o que interessa a esta vaga).
+- Experience: APENAS as 3-5 experiências mais relevantes pra vaga, com 2-4
+  bullets cada — e só bullets que provam requisitos da vaga (os da
+  whitelist). As demais experiências viram UMA linha cada numa seção
+  "Earlier Experience" (cargo · empresa · ano), ou saem se não agregarem.
+- Education: 1-2 linhas. Certificações: só as relevantes pra vaga (ou nada).
+
 Campos de saída:
 - "rewrittenCv": o CV completo adaptado, no idioma pedido, pronto pra
-  copiar. Mantém todos os fatos; muda posicionamento, ordem, ênfase e
-  redação. Sem buzzwords vazias ("passionate", "synergy", "rockstar").
+  copiar, DENTRO do limite de uma página acima. Mantém os fatos que ficam;
+  muda posicionamento, ordem, ênfase e redação. Sem buzzwords vazias
+  ("passionate", "synergy", "rockstar").
 - "changes": 3 a 8 mudanças explicadas, cada uma com "section" (ex.:
   "Summary", nome da empresa/experiência) e "change" (o que mudou e POR QUÊ
   em relação a esta vaga, em pt-BR, 1-2 frases).
@@ -838,6 +852,7 @@ export function buildCvRewriteUserPrompt(
   requirements: CvRequirement[],
   language: "en" | "pt",
   violationTerms?: string[],
+  mustCompress?: boolean,
 ): string {
   const allowed = requirements
     .filter((r) => r.status !== "missing")
@@ -848,13 +863,22 @@ export function buildCvRewriteUserPrompt(
     .map((r) => `- ${r.term}`)
     .join("\n");
 
-  const reinforcement = violationTerms?.length
+  const violationReinforcement = violationTerms?.length
     ? `
 
 ATENÇÃO — TENTATIVA ANTERIOR REJEITADA: o texto gerado mencionou termos da
 lista PROIBIDA (${violationTerms.join(", ")}). Gere novamente SEM NENHUMA
 menção a esses termos, em nenhuma forma ou variação.`
     : "";
+  const compressReinforcement = mustCompress
+    ? `
+
+ATENÇÃO — TENTATIVA ANTERIOR LONGA DEMAIS: o CV gerado estourou o limite de
+uma página. Gere novamente RESPEITANDO o máximo de ~500 palavras: detalhe
+apenas as 3-5 experiências mais relevantes pra vaga (2-4 bullets cada) e
+comprima TODAS as demais em uma linha cada na seção "Earlier Experience".`
+    : "";
+  const reinforcement = violationReinforcement + compressReinforcement;
 
   return `Vaga-alvo:
 - Cargo: ${job.role}

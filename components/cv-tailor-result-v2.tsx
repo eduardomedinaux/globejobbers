@@ -67,14 +67,25 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleDownload() {
-    const blob = new Blob([result.rewrittenCv], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "cv-adaptado.txt";
-    a.click();
-    URL.revokeObjectURL(url);
+  function handleDownloadPdf() {
+    // PDF nativo do navegador: abre uma visualização de impressão A4 do CV
+    // e dispara o diálogo (que já oferece "Salvar como PDF"). Zero
+    // dependência; o nome do arquivo vem do título do documento.
+    const w = window.open("", "_blank", "width=820,height=1060");
+    if (!w) return;
+    w.document.write(
+      "<!doctype html><html><head><meta charset='utf-8'><title>CV</title><style>" +
+        "@page{size:A4;margin:14mm}" +
+        "body{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;" +
+        "font-size:10.5pt;line-height:1.45;color:#111;margin:0;white-space:pre-wrap}" +
+        "</style></head><body></body></html>",
+    );
+    // textContent (não innerHTML): o CV é texto puro, nada é interpretado.
+    w.document.body.textContent = result.rewrittenCv;
+    w.document.title = `CV - ${result.job.role}`.slice(0, 80);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
   }
 
   return (
@@ -213,11 +224,11 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
             </button>
             <button
               type="button"
-              onClick={handleDownload}
+              onClick={handleDownloadPdf}
               className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
             >
               <Download className="h-3.5 w-3.5" />
-              Baixar
+              Baixar PDF
             </button>
           </div>
         </div>
