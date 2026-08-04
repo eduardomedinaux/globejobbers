@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, ArrowRight, Check, Copy, Download, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildCvPrintHtml } from "@/lib/cv-print";
 import type { CvMatchBreakdown, CvRequirement, CvTailorResultV2 } from "@/lib/types";
 
 function breakdownLabel(b: CvMatchBreakdown): string {
@@ -69,19 +70,13 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
 
   function handleDownloadPdf() {
     // PDF nativo do navegador: abre uma visualização de impressão A4 do CV
+    // tipografado (lib/cv-print.ts — títulos em negrito, hierarquia, respiro)
     // e dispara o diálogo (que já oferece "Salvar como PDF"). Zero
-    // dependência; o nome do arquivo vem do título do documento.
+    // dependência; o nome do arquivo vem do título do documento. Todo o
+    // texto do CV é escapado dentro de buildCvPrintHtml — nada é interpretado.
     const w = window.open("", "_blank", "width=820,height=1060");
     if (!w) return;
-    w.document.write(
-      "<!doctype html><html><head><meta charset='utf-8'><title>CV</title><style>" +
-        "@page{size:A4;margin:14mm}" +
-        "body{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;" +
-        "font-size:10.5pt;line-height:1.45;color:#111;margin:0;white-space:pre-wrap}" +
-        "</style></head><body></body></html>",
-    );
-    // textContent (não innerHTML): o CV é texto puro, nada é interpretado.
-    w.document.body.textContent = result.rewrittenCv;
+    w.document.write(buildCvPrintHtml(result.rewrittenCv));
     w.document.title = `CV - ${result.job.role}`.slice(0, 80);
     w.document.close();
     w.focus();
