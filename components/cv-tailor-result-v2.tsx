@@ -174,6 +174,36 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Seu CV adaptado — o entregável vem primeiro; a análise embaixo */}
+      <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
+            Seu CV adaptado
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copiado" : "Copiar"}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Baixar PDF
+            </button>
+          </div>
+        </div>
+        <div className="max-h-[420px] overflow-y-auto rounded-xl border border-[#F0F0EA] bg-[#FDFDFB] px-5 py-4">
+          <CvFormattedPreview cvText={result.rewrittenCv} />
+        </div>
+      </div>
+
       {/* Match com a vaga — nunca "ATS Score" */}
       <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
         <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
@@ -290,36 +320,6 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
           </ul>
         </div>
       )}
-
-      {/* Seu CV adaptado */}
-      <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
-            Seu CV adaptado
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? "Copiado" : "Copiar"}
-            </button>
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Baixar PDF
-            </button>
-          </div>
-        </div>
-        <div className="max-h-[420px] overflow-y-auto rounded-xl border border-[#F0F0EA] bg-[#FDFDFB] px-5 py-4">
-          <CvFormattedPreview cvText={result.rewrittenCv} />
-        </div>
-      </div>
 
       {/* Recomendações (o que só o candidato pode fazer) */}
       {result.recommendations.length > 0 && (
