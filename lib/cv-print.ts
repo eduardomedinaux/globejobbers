@@ -14,7 +14,13 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-const DIVIDER = /^[-–—_=]{3,}$/;
+// Linha divisória: só traços/underscores/iguais (qualquer variante de
+// travessão ou box-drawing), com ou sem espaços no meio. Ex.: "---",
+// "________", "— — —", "──────".
+function isDivider(line: string): boolean {
+  const compact = line.replace(/\s+/g, "");
+  return compact.length >= 3 && /^[-–—―─━┄┅┈┉_=~]+$/.test(compact);
+}
 const BULLET = /^[•·*-]\s+/;
 // "SUMMARY", "SKILLS & TOOLS", "EARLIER EXPERIENCE"…
 const SECTION = /^[A-Z0-9][A-Z0-9 &+\/,·'-]{2,44}$/;
@@ -38,7 +44,7 @@ export function stripDividers(cvText: string): string {
   return cvText
     .replace(/\r/g, "")
     .split("\n")
-    .filter((line) => !DIVIDER.test(line.trim()))
+    .filter((line) => !isDivider(line.trim()))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -51,7 +57,7 @@ export function parseCvText(cvText: string): ParsedCv {
   let i = 0;
   while (i < lines.length && lines[i].trim().length === 0) i++;
   const header: string[] = [];
-  while (i < lines.length && lines[i].trim().length > 0 && !DIVIDER.test(lines[i].trim())) {
+  while (i < lines.length && lines[i].trim().length > 0 && !isDivider(lines[i].trim())) {
     header.push(lines[i].trim());
     i++;
   }
@@ -60,7 +66,7 @@ export function parseCvText(cvText: string): ParsedCv {
   const blocks: CvBlock[] = [];
   for (; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (line.length === 0 || DIVIDER.test(line)) {
+    if (line.length === 0 || isDivider(line)) {
       if (blocks.length > 0 && blocks[blocks.length - 1].type !== "gap") {
         blocks.push({ type: "gap" });
       }
@@ -134,7 +140,7 @@ h1 { font-size: 19pt; letter-spacing: -0.02em; margin: 0 0 1pt; }
 .subtitle { font-size: 11pt; font-weight: 600; color: #0F4D4A; margin: 0 0 3pt; }
 .contact { font-size: 8.5pt; color: #55555a; margin: 0 0 1pt; }
 h2 { font-size: 9pt; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
-  color: #0F4D4A; border-bottom: 1pt solid #d8d8d2; padding-bottom: 2pt; margin: 12pt 0 5pt; }
+  color: #0F4D4A; margin: 12pt 0 5pt; }
 p { margin: 0 0 3pt; }
 .org { font-weight: 700; margin: 7pt 0 0; }
 .role { font-weight: 600; margin: 0; }
