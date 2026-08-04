@@ -11,6 +11,8 @@ export interface MarketProfileCardData {
   targetRole: string;
   marketLabel: string;
   keywordCount: number;
+  /** Títulos das vagas que montaram o perfil (1ª linha de cada vaga). */
+  jobs: string[];
 }
 
 interface AssetCardsProps {
@@ -95,6 +97,27 @@ export function AssetCards({ marketProfile, document: initialDoc }: AssetCardsPr
                 <strong>{marketProfile.targetRole}</strong> · {marketProfile.marketLabel} ·{" "}
                 {marketProfile.keywordCount} keywords mapeadas das suas vagas
               </p>
+
+              {/* As vagas que montaram o perfil — a matéria-prima fica visível */}
+              {marketProfile.jobs.length > 0 && (
+                <div className="rounded-xl bg-[#FAFAF8] px-3.5 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#A0A09B]">
+                    Vagas que você quer ({marketProfile.jobs.length})
+                  </p>
+                  <ul className="mt-1.5 flex flex-col gap-1">
+                    {marketProfile.jobs.slice(0, 5).map((title, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-[12.5px] leading-[1.45] text-[#5C5C60]"
+                      >
+                        <Briefcase className="mt-0.5 h-3 w-3 shrink-0 text-[#0F4D4A]" />
+                        <span className="truncate">{title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <Link
                 href="/tools/linkedin-review?tab=headline"
                 className="flex items-center gap-1.5 text-[13px] font-medium text-[#0F4D4A] hover:underline"

@@ -41,6 +41,8 @@ export default async function DashboardPage() {
           (sum: number, list: MarketKeyword[]) => sum + list.length,
           0,
         ),
+        // As vagas que montaram o perfil — visíveis no card (só os títulos).
+        jobs: marketProfile.sourceJobs.map((j) => j.title),
       }
     : null;
 

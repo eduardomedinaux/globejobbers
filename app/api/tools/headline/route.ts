@@ -140,6 +140,8 @@ export async function POST(request: NextRequest) {
         targetMarket,
         language,
         keywords: row.keywords as MarketProfileKeywords,
+        // A geração não usa as vagas em si — só o perfil extraído delas.
+        sourceJobs: [],
         createdAt: row.created_at as string,
       };
 

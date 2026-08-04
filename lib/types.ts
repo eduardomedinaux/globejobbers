@@ -224,6 +224,8 @@ export interface MarketProfile extends MarketProfileIdentified {
   currentRole: string;
   language: HeadlineLanguage;
   keywords: MarketProfileKeywords;
+  /** As vagas que montaram o perfil (só título/tamanho — texto fica no banco). */
+  sourceJobs: { index: number; title: string; chars: number }[];
   createdAt: string;
 }
 
@@ -376,4 +378,12 @@ export interface PostResult {
   hashtags: string[];
   /** 1-2 frases (pt-BR) explicando o posicionamento escolhido. */
   rationale: string;
+}
+
+/** Referência leve às vagas que montaram o perfil (sem o texto completo). */
+export interface MarketProfileJobRef {
+  index: number;
+  /** Primeira linha da vaga — normalmente o título. */
+  title: string;
+  chars: number;
 }
