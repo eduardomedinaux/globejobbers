@@ -184,7 +184,7 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
             <button
               type="button"
               onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
+              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-3 py-2 text-[13px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copiado" : "Copiar"}
@@ -192,9 +192,9 @@ export function CvTailorResultV2View({ result }: { result: CvTailorResultV2 }) {
             <button
               type="button"
               onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] px-2.5 py-1.5 text-[12.5px] font-medium text-[#3F3F43] transition-colors hover:bg-[#FAFAF8]"
+              className="flex items-center gap-2 rounded-lg bg-[#0F4D4A] px-4 py-2 text-[13.5px] font-semibold text-white shadow-[0_1px_2px_rgba(15,77,74,0.25)] transition-colors hover:bg-[#0C403D]"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-4 w-4" />
               Baixar PDF
             </button>
           </div>
