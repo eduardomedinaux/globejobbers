@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { resolveEffectivePlan } from "@/lib/plan";
-import { PRO_LIMITS, FREE_LIMITS } from "@/lib/usage";
+import { PRO_LIMITS } from "@/lib/usage";
 import { LogoutButton } from "@/components/dashboard/logout-button";
-import { JoinWaitlistButton } from "@/components/account/join-waitlist-button";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
@@ -25,10 +25,11 @@ export default async function AccountPage() {
   // Plano EFETIVO: pro expirado exibe (e vale) como free — ver lib/plan.ts.
   const { plan, expiresAt } = resolveEffectivePlan(profile?.plan, profile?.plan_expires_at);
 
+  // Cobrança desde o início: "free" = conta sem plano ativo (ver lib/usage.ts).
   const planDescription =
     plan === "pro"
       ? `${PRO_LIMITS.headline} headlines, ${PRO_LIMITS.cv_tailor} CV Tailors e ${PRO_LIMITS.linkedin_review} LinkedIn Reviews por mês.`
-      : `${FREE_LIMITS.headline} headlines, ${FREE_LIMITS.cv_tailor} CV Tailors e ${FREE_LIMITS.linkedin_review} LinkedIn Review por mês.`;
+      : "Sua conta ainda não tem um plano ativo — assine ou use o acesso da mentoria.";
 
   return (
     <div className="mx-auto flex max-w-[560px] flex-col gap-6">
@@ -56,7 +57,7 @@ export default async function AccountPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[14.5px] font-semibold text-[#1B1B1E]">
-              Plano {plan === "pro" ? "Pro" : "Free"}
+              {plan === "pro" ? "Plano Pro" : "Sem plano ativo"}
             </p>
             <p className="mt-0.5 text-[13px] text-[#6E6E72]">{planDescription}</p>
             {plan === "pro" && expiresAt && (
@@ -68,7 +69,12 @@ export default async function AccountPage() {
         </div>
         {plan !== "pro" && (
           <div className="mt-4">
-            <JoinWaitlistButton />
+            <Link
+              href="/assinatura"
+              className="inline-flex items-center rounded-lg bg-[#0F4D4A] px-4 py-2 text-[13.5px] font-semibold text-white transition-colors hover:bg-[#0C403D]"
+            >
+              Ver planos
+            </Link>
           </div>
         )}
       </div>

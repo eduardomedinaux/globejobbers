@@ -161,12 +161,26 @@ create table if not exists public.pro_grants (
   days integer not null default 30 check (days > 0),
   -- 'beta' | 'mentoria' | 'hotmart' | 'manual' — de onde veio a concessão
   source text,
+  -- Referência externa (transação da Hotmart) — permite achar o grant no
+  -- reembolso/cancelamento (arrependimento de 7 dias do CDC) e revogá-lo.
+  external_ref text,
   created_at timestamptz not null default now(),
   claimed_at timestamptz,
-  claimed_by uuid references auth.users (id) on delete set null
+  claimed_by uuid references auth.users (id) on delete set null,
+  -- Grant revogado não conta: se ainda não resgatado, o resgate ignora;
+  -- se já resgatado, o webhook desconta os dias do plan_expires_at.
+  revoked_at timestamptz
 );
 
 create index if not exists pro_grants_email_idx on public.pro_grants (lower(email));
+create index if not exists pro_grants_external_ref_idx on public.pro_grants (external_ref);
+
+-- MIGRAÇÃO (rodar uma vez em produção — decisão de 05/ago/2026, cobrança
+-- desde o início + webhook Hotmart com revogação):
+--   alter table public.pro_grants add column if not exists external_ref text;
+--   alter table public.pro_grants add column if not exists revoked_at timestamptz;
+--   create index if not exists pro_grants_external_ref_idx
+--     on public.pro_grants (external_ref);
 
 alter table public.pro_grants enable row level security;
 grant select, insert, update on public.pro_grants to service_role;

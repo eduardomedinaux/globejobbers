@@ -67,6 +67,11 @@ export function LinkedinReviewTool() {
       const res = await fetch("/api/tools/linkedin-review", { method: "POST", body: formData });
       const data = await res.json();
 
+      if (res.status === 403 && data.code === "PLAN_REQUIRED") {
+        track("plan_required", { tool_type: "linkedin_review" });
+        window.location.assign("/assinatura");
+        return;
+      }
       if (res.status === 403 && data.code === "LIMIT_REACHED") {
         setStep("limit_reached");
         track("limit_reached", { tool_type: "linkedin_review" });

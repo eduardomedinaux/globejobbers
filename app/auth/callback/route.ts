@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
         .from("pro_grants")
         .select("id, days")
         .is("claimed_at", null)
+        // Grant revogado (reembolso Hotmart nos 7 dias) nunca é resgatado.
+        .is("revoked_at", null)
         .ilike("email", email);
 
       if (grants && grants.length > 0) {

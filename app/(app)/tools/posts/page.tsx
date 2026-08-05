@@ -45,6 +45,11 @@ export default function PostsPage() {
       });
       const data = await res.json();
 
+      if (res.status === 403 && data.code === "PLAN_REQUIRED") {
+        track("plan_required", { tool_type: "post" });
+        window.location.assign("/assinatura");
+        return;
+      }
       if (res.status === 403 && data.code === "LIMIT_REACHED") {
         setStep("limit_reached");
         track("limit_reached", { tool_type: "post" });

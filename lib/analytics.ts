@@ -24,6 +24,10 @@ export type AnalyticsEvent =
   | "tool_card_clicked"
   | "limit_reached"
   | "upgrade_waitlist_clicked"
+  // Cobrança desde o início (decisão de 05/ago): usuário sem plano ativo
+  // bateu no paywall e foi levado pra /assinatura
+  | "plan_required"
+  | "pricing_viewed"
   // Headline Optimizer logado
   | "headline_tool_viewed"
   | "headline_analysis_started"

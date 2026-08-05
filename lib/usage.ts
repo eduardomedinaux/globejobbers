@@ -2,13 +2,19 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getPlanStatus, type Plan } from "@/lib/plan";
 import type { ToolType } from "@/lib/types";
 
-/** Limites gratuitos mensais por ferramenta (ver CLAUDE.md / spec da Fase 2). */
+/**
+ * Cobrança desde o início (decisão de 05/ago/2026): NÃO existe mais tier
+ * gratuito de uso. "free" = conta sem plano ativo, e todos os limites são 0
+ * (cinto e suspensório: as rotas já barram antes com PLAN_REQUIRED quando o
+ * plano efetivo é free). Acesso vem de assinatura (Stripe, Fase 3) ou de
+ * grant (mentoria/cupom/beta via pro_grants).
+ */
 export const FREE_LIMITS: Record<ToolType, number> = {
-  headline: 3,
-  cv_tailor: 2,
-  linkedin_review: 1,
-  networking: 3,
-  post: 3,
+  headline: 0,
+  cv_tailor: 0,
+  linkedin_review: 0,
+  networking: 0,
+  post: 0,
 };
 
 /**

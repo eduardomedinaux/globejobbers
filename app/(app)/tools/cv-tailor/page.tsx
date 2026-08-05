@@ -72,6 +72,11 @@ export default function CvTailorPage() {
       const res = await fetch("/api/tools/cv-tailor", { method: "POST", body: formData });
       const data = await res.json();
 
+      if (res.status === 403 && data.code === "PLAN_REQUIRED") {
+        track("plan_required", { tool_type: "cv_tailor" });
+        window.location.assign("/assinatura");
+        return;
+      }
       if (res.status === 403 && data.code === "LIMIT_REACHED") {
         setStep("limit_reached");
         track("limit_reached", { tool_type: "cv_tailor" });

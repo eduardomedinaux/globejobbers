@@ -29,9 +29,16 @@ export async function POST(request: NextRequest) {
   }
 
   const usage = await getUsageStatus(user.id, "linkedin_review");
+  if (usage.plan === "free") {
+    // Cobrança desde o início: sem plano ativo não há acesso (ver lib/usage.ts).
+    return NextResponse.json(
+      { error: "Sua conta ainda não tem um plano ativo.", code: "PLAN_REQUIRED", usage },
+      { status: 403 },
+    );
+  }
   if (usage.limitReached) {
     return NextResponse.json(
-      { error: "Você atingiu o limite gratuito deste mês.", code: "LIMIT_REACHED", usage },
+      { error: "Você atingiu o limite do seu plano neste mês.", code: "LIMIT_REACHED", usage },
       { status: 403 },
     );
   }
