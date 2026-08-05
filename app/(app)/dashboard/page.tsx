@@ -11,8 +11,6 @@ import { getRecentAnalyses } from "@/lib/history";
 import { TARGET_MARKET_LABELS, TOOL_TYPE_LABELS, type MarketKeyword } from "@/lib/types";
 
 function remainingLabel(remaining: number, limit: number) {
-  // Cobrança desde o início: sem plano ativo, limit = 0 (ver lib/usage.ts).
-  if (limit === 0) return "Requer plano ativo";
   return `${remaining} de ${limit} análise${limit === 1 ? "" : "s"} restante${remaining === 1 ? "" : "s"} este mês`;
 }
 
@@ -127,10 +125,11 @@ export default async function DashboardPage() {
         >
           <div>
             <p className="text-[14.5px] font-semibold text-[#0F4D4A]">
-              Sua conta ainda não tem um plano ativo
+              Você está na degustação gratuita — 1 uso de cada ferramenta
             </p>
             <p className="mt-0.5 text-[13px] text-[#3F3F43]">
-              Assine — ou, se você comprou a mentoria, entre com o e-mail da compra.
+              Assine pra liberar os limites completos — ou, se você comprou a
+              mentoria, entre com o e-mail da compra.
             </p>
           </div>
           <span className="shrink-0 rounded-lg bg-[#0F4D4A] px-3.5 py-2 text-[13px] font-semibold text-white">

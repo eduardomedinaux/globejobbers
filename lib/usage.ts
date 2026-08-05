@@ -3,18 +3,19 @@ import { getPlanStatus, type Plan } from "@/lib/plan";
 import type { ToolType } from "@/lib/types";
 
 /**
- * Cobrança desde o início (decisão de 05/ago/2026): NÃO existe mais tier
- * gratuito de uso. "free" = conta sem plano ativo, e todos os limites são 0
- * (cinto e suspensório: as rotas já barram antes com PLAN_REQUIRED quando o
- * plano efetivo é free). Acesso vem de assinatura (Stripe, Fase 3) ou de
- * grant (mentoria/cupom/beta via pro_grants).
+ * Degustação (decisão de 05/ago/2026, revisada no mesmo dia): cobrança
+ * desde o início, MAS com 1 uso gratuito de cada ferramenta — a pessoa
+ * prova o valor uma vez e, ao tentar de novo, cai no paywall (as rotas
+ * retornam PLAN_REQUIRED quando o limite esgota no plano free; pro usa o
+ * LIMIT_REACHED normal). Acesso completo vem de assinatura (Stripe, Fase
+ * 3) ou de grant (mentoria/cupom/beta via pro_grants).
  */
 export const FREE_LIMITS: Record<ToolType, number> = {
-  headline: 0,
-  cv_tailor: 0,
-  linkedin_review: 0,
-  networking: 0,
-  post: 0,
+  headline: 1,
+  cv_tailor: 1,
+  linkedin_review: 1,
+  networking: 1,
+  post: 1,
 };
 
 /**

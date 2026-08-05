@@ -25,11 +25,11 @@ export default async function AccountPage() {
   // Plano EFETIVO: pro expirado exibe (e vale) como free — ver lib/plan.ts.
   const { plan, expiresAt } = resolveEffectivePlan(profile?.plan, profile?.plan_expires_at);
 
-  // Cobrança desde o início: "free" = conta sem plano ativo (ver lib/usage.ts).
+  // Degustação: free = 1 uso de cada ferramenta (ver lib/usage.ts).
   const planDescription =
     plan === "pro"
       ? `${PRO_LIMITS.headline} headlines, ${PRO_LIMITS.cv_tailor} CV Tailors e ${PRO_LIMITS.linkedin_review} LinkedIn Reviews por mês.`
-      : "Sua conta ainda não tem um plano ativo — assine ou use o acesso da mentoria.";
+      : "Degustação gratuita: 1 uso de cada ferramenta. Assine pra liberar os limites completos.";
 
   return (
     <div className="mx-auto flex max-w-[560px] flex-col gap-6">
@@ -57,7 +57,7 @@ export default async function AccountPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[14.5px] font-semibold text-[#1B1B1E]">
-              {plan === "pro" ? "Plano Pro" : "Sem plano ativo"}
+              {plan === "pro" ? "Plano Pro" : "Degustação gratuita"}
             </p>
             <p className="mt-0.5 text-[13px] text-[#6E6E72]">{planDescription}</p>
             {plan === "pro" && expiresAt && (
