@@ -45,6 +45,11 @@ export default function LoginPage() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        // Sempre mostrar o seletor de contas do Google. Sem isso, o Google
+        // reaproveita a última sessão e loga direto com a mesma conta —
+        // impossível trocar de conta (ex.: testar o paywall com outro
+        // e-mail, ou entrar com o e-mail da compra da mentoria).
+        queryParams: { prompt: "select_account" },
       },
     });
 
