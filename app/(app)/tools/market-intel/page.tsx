@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
 import { MarketIntelReportView } from "@/components/tools/market-intel-report";
 import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,18 @@ import {
 } from "@/lib/types";
 
 type Step = "input" | "running" | "result" | "limit_reached";
+
+/**
+ * Resposta que não é JSON (ex.: página de erro/timeout da Vercel em texto
+ * puro) não pode virar "Unexpected token…" na cara do usuário.
+ */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Market Intelligence — passo 1 da jornada. O usuário informa cargo +
@@ -56,7 +69,7 @@ export default function MarketIntelPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, region }),
       });
-      const startData = await startRes.json();
+      const startData = await safeJson(startRes);
 
       if (startRes.status === 403 && startData.code === "PLAN_REQUIRED") {
         track("plan_required", { tool_type: "market_intel" });
@@ -69,7 +82,11 @@ export default function MarketIntelPage() {
         return;
       }
       if (!startRes.ok) {
-        throw new Error(startData.error ?? "Não foi possível coletar as vagas.");
+        throw new Error(
+          typeof startData.error === "string"
+            ? startData.error
+            : "Não foi possível coletar as vagas agora. Tente novamente em instantes.",
+        );
       }
 
       // Cache: relatório pronto na primeira resposta.
@@ -107,8 +124,10 @@ export default function MarketIntelPage() {
           });
         }
         if (!extractRes.ok) {
-          const data = await extractRes.json().catch(() => ({}));
-          throw new Error(data.error ?? "Falha ao analisar as vagas.");
+          const data = await safeJson(extractRes);
+          throw new Error(
+            typeof data.error === "string" ? data.error : "Falha ao analisar as vagas.",
+          );
         }
       }
 
@@ -119,13 +138,17 @@ export default function MarketIntelPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reportId }),
       });
-      const finalData = await finalRes.json();
+      const finalData = await safeJson(finalRes);
       if (!finalRes.ok) {
-        throw new Error(finalData.error ?? "Não foi possível concluir o relatório.");
+        throw new Error(
+          typeof finalData.error === "string"
+            ? finalData.error
+            : "Não foi possível concluir o relatório.",
+        );
       }
 
       setReport(finalData.report as MarketIntelReport);
-      setRemaining(finalData.usage?.remaining ?? null);
+      setRemaining((finalData.usage as { remaining?: number } | undefined)?.remaining ?? null);
       setStep("result");
       track("market_intel_completed", { region, cached: false });
     } catch (err) {
@@ -147,14 +170,39 @@ export default function MarketIntelPage() {
         <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[#161618]">
           Market Intelligence
         </h1>
-        <p className="mt-1 text-[14.5px] text-[#6E6E72]">
-          Centenas de vagas reais analisadas pra você entender, em 30 segundos,
-          como esse mercado funciona — antes de otimizar qualquer coisa.
+        <p className="mt-1 text-[14.5px] leading-[1.6] text-[#6E6E72]">
+          Antes de otimizar LinkedIn ou CV, descubra o que o mercado{" "}
+          <strong className="font-semibold text-[#1B1B1E]">realmente</strong> pede. A gente lê
+          centenas de vagas reais publicadas no último mês e te entrega o mapa
+          do mercado que você quer entrar.
         </p>
       </div>
 
       {(step === "input" || step === "limit_reached") && (
         <>
+          <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
+            <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
+              O que você vai descobrir
+            </p>
+            <ul className="flex flex-col gap-2.5">
+              {[
+                "Como o mercado chama esse cargo — e qual nomenclatura faz recrutadores te encontrarem",
+                "As skills e ferramentas mais exigidas, com percentuais calculados das vagas reais",
+                "As responsabilidades que se repetem vaga após vaga",
+                "A senioridade que esse mercado está contratando agora",
+                "E os insights que você levaria horas pra garimpar sozinho",
+              ].map((item) => (
+                <li key={item} className="flex gap-2.5 text-[14px] leading-[1.55] text-[#3F3F43]">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#0F4D4A]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 border-t border-[#F0F0EA] pt-3 text-[12.5px] leading-[1.55] text-[#A0A09B]">
+              No final, um clique: comparar o SEU perfil com o que esse mercado
+              pede — e saber exatamente o que ajustar.
+            </p>
+          </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="mi-role">Cargo que você quer pesquisar</Label>
             <Input
