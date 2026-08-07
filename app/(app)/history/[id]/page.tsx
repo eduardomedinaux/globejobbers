@@ -11,6 +11,7 @@ import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
 import { HeadlineMarketResultView } from "@/components/market-profile/headline-market-result";
 import { NetworkingResultView } from "@/components/tools/networking-result";
 import { PostResultView } from "@/components/tools/post-result";
+import { MarketIntelReportView } from "@/components/tools/market-intel-report";
 import { TOOL_TYPE_LABELS } from "@/lib/types";
 import type {
   CvTailorResult,
@@ -18,6 +19,7 @@ import type {
   HeadlineAnalysisResult,
   LinkedinReviewResult,
   MarketHeadlineResult,
+  MarketIntelReport,
   NetworkingResult,
   PostResult,
 } from "@/lib/types";
@@ -49,6 +51,13 @@ export default async function HistoryDetailPage({ params }: { params: { id: stri
           })}
         </p>
       </div>
+
+      {analysis.tool_type === "market_intel" && (
+        <MarketIntelReportView
+          report={analysis.output_data as MarketIntelReport}
+          showCta={false}
+        />
+      )}
 
       {analysis.tool_type === "headline" &&
         (() => {

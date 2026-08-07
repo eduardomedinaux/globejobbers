@@ -21,6 +21,15 @@ import {
   HEADLINE_VISION_TOOL,
   LINKEDIN_REVIEW_SYSTEM_PROMPT,
   LINKEDIN_REVIEW_TOOL,
+  MARKET_INTEL_EXPANSION_SYSTEM_PROMPT,
+  MARKET_INTEL_EXPANSION_TOOL,
+  MARKET_INTEL_EXTRACTION_SYSTEM_PROMPT,
+  MARKET_INTEL_EXTRACTION_TOOL,
+  MARKET_INTEL_INSIGHTS_SYSTEM_PROMPT,
+  MARKET_INTEL_INSIGHTS_TOOL,
+  buildMarketIntelExpansionUserPrompt,
+  buildMarketIntelExtractionUserPrompt,
+  buildMarketIntelInsightsUserPrompt,
   MARKET_PROFILE_SYSTEM_PROMPT,
   MARKET_PROFILE_TOOL,
   NETWORKING_SYSTEM_PROMPT,
@@ -44,6 +53,8 @@ import {
   type LinkedinReviewResult,
   type MarketHeadlineResult,
   type MarketHeadlineVariant,
+  type MarketIntelJobExtraction,
+  type MarketIntelSeniority,
   type MarketKeyword,
   type MarketProfile,
   type MarketProfileExtraction,
@@ -801,4 +812,131 @@ export async function generatePost(
   }
 
   return validatePostResult(toolUse.input);
+}
+
+// --- Market Intelligence (ver claude/MVP-MARKET-INTELLIGENCE.md) ---
+
+/** Expande o cargo em nomenclaturas de busca (Haiku, barato). */
+export async function expandRoleQueries(role: string): Promise<string[]> {
+  const response = await anthropic.messages.create({
+    model: EXTRACTION_MODEL,
+    max_tokens: 500,
+    temperature: 0,
+    system: MARKET_INTEL_EXPANSION_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildMarketIntelExpansionUserPrompt(role) }],
+    tools: [MARKET_INTEL_EXPANSION_TOOL],
+    tool_choice: { type: "tool", name: MARKET_INTEL_EXPANSION_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+  const input = toolUse.input as { queries?: unknown };
+  const queries = Array.isArray(input.queries)
+    ? input.queries.filter((q): q is string => typeof q === "string" && q.trim().length > 1).slice(0, 5)
+    : [];
+  // Fail-safe: sem expansão válida, buscamos pelo próprio cargo.
+  return queries.length > 0 ? queries : [role];
+}
+
+const MARKET_INTEL_SENIORITIES: MarketIntelSeniority[] = [
+  "junior",
+  "mid",
+  "senior",
+  "lead_plus",
+  "unclear",
+];
+
+function validateMarketIntelExtractions(raw: unknown, expected: number): MarketIntelJobExtraction[] {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const list = (raw as { extractions?: unknown }).extractions;
+  if (!Array.isArray(list)) {
+    throw new Error("A IA não retornou a lista de extrações.");
+  }
+  const toStringArray = (value: unknown, max: number): string[] =>
+    Array.isArray(value)
+      ? value
+          .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+          .map((v) => v.trim().slice(0, 80))
+          .slice(0, max)
+      : [];
+
+  return list.slice(0, expected).map((item) => {
+    const e = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>;
+    const seniority = MARKET_INTEL_SENIORITIES.includes(e.seniority as MarketIntelSeniority)
+      ? (e.seniority as MarketIntelSeniority)
+      : "unclear";
+    return {
+      relevant: e.relevant === true,
+      normalizedTitle: (typeof e.normalizedTitle === "string" ? e.normalizedTitle : "").trim().slice(0, 80),
+      seniority,
+      skills: toStringArray(e.skills, 12),
+      tools: toStringArray(e.tools, 10),
+      responsibilities: toStringArray(e.responsibilities, 8),
+    };
+  });
+}
+
+/**
+ * Extrai a estrutura de um LOTE de vagas (Haiku, temp 0). O lote é
+ * orquestrado pelo client (ver app/api/tools/market-intel) pra caber no
+ * timeout da Vercel e no rate limit da conta Anthropic.
+ */
+export async function extractJobsBatch(
+  role: string,
+  jobDescriptions: string[],
+): Promise<MarketIntelJobExtraction[]> {
+  const response = await anthropic.messages.create({
+    model: EXTRACTION_MODEL,
+    max_tokens: 4000,
+    temperature: 0,
+    system: MARKET_INTEL_EXTRACTION_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildMarketIntelExtractionUserPrompt(role, jobDescriptions) },
+    ],
+    tools: [MARKET_INTEL_EXTRACTION_TOOL],
+    tool_choice: { type: "tool", name: MARKET_INTEL_EXTRACTION_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+  return validateMarketIntelExtractions(toolUse.input, jobDescriptions.length);
+}
+
+/**
+ * Escreve o bloco "O que mais chamou atenção" a partir das estatísticas JÁ
+ * CALCULADAS em código (prosa premium → Sonnet). O prompt proíbe números
+ * fora das estatísticas fornecidas.
+ */
+export async function writeMarketIntelInsights(
+  role: string,
+  regionLabel: string,
+  statsJson: string,
+): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 1200,
+    temperature: 0,
+    system: MARKET_INTEL_INSIGHTS_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildMarketIntelInsightsUserPrompt(role, regionLabel, statsJson) },
+    ],
+    tools: [MARKET_INTEL_INSIGHTS_TOOL],
+    tool_choice: { type: "tool", name: MARKET_INTEL_INSIGHTS_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+  const insights = (toolUse.input as { insights?: unknown }).insights;
+  if (typeof insights !== "string" || insights.trim().length === 0) {
+    throw new Error("A IA não retornou o texto de insights.");
+  }
+  return insights.trim().slice(0, 4000);
 }

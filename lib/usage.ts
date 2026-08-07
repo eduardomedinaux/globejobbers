@@ -11,6 +11,7 @@ import type { ToolType } from "@/lib/types";
  * 3) ou de grant (mentoria/cupom/beta via pro_grants).
  */
 export const FREE_LIMITS: Record<ToolType, number> = {
+  market_intel: 1,
   headline: 1,
   cv_tailor: 1,
   linkedin_review: 1,
@@ -24,6 +25,9 @@ export const FREE_LIMITS: Record<ToolType, number> = {
  * custo de API (conta Anthropic pré-paga, recarga automática desligada).
  */
 export const PRO_LIMITS: Record<ToolType, number> = {
+  // Market Intelligence é a ferramenta mais cara por uso (coleta + extração
+  // de ~centenas de vagas) — teto menor protege o custo de API.
+  market_intel: 5,
   headline: 30,
   cv_tailor: 20,
   linkedin_review: 10,

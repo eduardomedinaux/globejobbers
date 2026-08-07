@@ -214,11 +214,52 @@ grant select, insert, update on public.pro_grants to service_role;
 alter table public.analyses drop constraint if exists analyses_tool_type_check;
 alter table public.analyses add constraint analyses_tool_type_check check (
   tool_type in (
+    'market_intel',
     'headline', 'cv_tailor', 'linkedin_review',
     'networking', 'post',
     'about', 'experience', 'cover_letter', 'interview_prep'
   )
 );
+-- MIGRAÇÃO (rodar uma vez em produção — 06/ago/2026, Market Intelligence):
+-- os dois ALTERs acima já são idempotentes; basta reexecutá-los com a
+-- lista nova (incluindo 'market_intel').
+
+-- ============================================================================
+-- Market Intelligence (passo 1 da jornada — claude/MVP-MARKET-INTELLIGENCE.md)
+-- ============================================================================
+--
+-- Uma linha por relatório. Serve de STAGING durante a geração (o client
+-- orquestra: start → extract em lotes → finalize) e de CACHE depois:
+-- relatório 'ready' pra (role_key × region) com expires_at no futuro é
+-- servido de graça pro próximo usuário. raw_jobs é limpo no finalize
+-- (payload grande, já não é necessário).
+
+create table if not exists public.market_reports (
+  id uuid primary key default gen_random_uuid(),
+  -- Quem iniciou a geração (histórico por usuário fica em analyses).
+  created_by uuid references auth.users (id) on delete set null,
+  role_key text not null,
+  region text not null check (region in ('us', 'europe', 'latam', 'br')),
+  status text not null default 'collecting'
+    check (status in ('collecting', 'extracting', 'ready', 'failed')),
+  -- Staging: vagas coletadas (SourcedJob[]) aguardando extração.
+  raw_jobs jsonb,
+  -- Extrações acumuladas por lote (MarketIntelJobExtraction[]).
+  extractions jsonb not null default '[]'::jsonb,
+  jobs_collected integer not null default 0,
+  -- O MarketIntelReport final (quando status = 'ready').
+  report jsonb,
+  created_at timestamptz not null default now(),
+  -- Cache TTL: finalize grava now() + 14 dias.
+  expires_at timestamptz
+);
+
+create index if not exists market_reports_cache_idx
+  on public.market_reports (role_key, region, expires_at desc)
+  where status = 'ready';
+
+alter table public.market_reports enable row level security;
+grant select, insert, update, delete on public.market_reports to service_role;
 
 -- ============================================================================
 -- Dashboard vivo — Perfil Profissional do usuário (user_documents)

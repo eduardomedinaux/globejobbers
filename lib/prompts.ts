@@ -1130,3 +1130,145 @@ export const POST_TOOL: Anthropic.Tool = {
     required: ["variants", "hashtags", "rationale"],
   },
 };
+
+// --- Market Intelligence (ver claude/MVP-MARKET-INTELLIGENCE.md) ---
+//
+// Três etapas de IA, cada uma com papel estrito:
+//  1. Expansão: cargo → nomenclaturas de busca (Haiku).
+//  2. Extração em lote: N vagas → estrutura por vaga, com flag de
+//     relevância (Haiku, temp 0). O spike pegou "Apparel Product Designer"
+//     numa busca de Product Designer — o filtro é obrigatório.
+//  3. Insight: recebe as ESTATÍSTICAS PRONTAS (calculadas em código) e só
+//     escreve sobre elas (Sonnet). Nunca produz números próprios.
+
+export const MARKET_INTEL_EXPANSION_SYSTEM_PROMPT = `Você é um sourcer técnico sênior que conhece as nomenclaturas reais usadas
+em anúncios de vaga internacionais. Dado um cargo, liste as variações de
+título que empregadores de fato usam ao anunciar ESSA MESMA função — não
+funções vizinhas (para "Product Designer", inclua "UX Designer";
+NÃO inclua "Graphic Designer" nem "Product Manager").
+Responda chamando a tool.`;
+
+export function buildMarketIntelExpansionUserPrompt(role: string): string {
+  return `Cargo pesquisado: ${role}
+
+Liste de 3 a 5 nomenclaturas de busca (incluindo o próprio cargo informado,
+normalizado em inglês quando fizer sentido) e chame "submit_role_queries".`;
+}
+
+export const MARKET_INTEL_EXPANSION_TOOL: Anthropic.Tool = {
+  name: "submit_role_queries",
+  description: "Envia as nomenclaturas de busca equivalentes ao cargo pesquisado.",
+  input_schema: {
+    type: "object",
+    properties: {
+      queries: {
+        type: "array",
+        minItems: 3,
+        maxItems: 5,
+        items: { type: "string" },
+        description: "Títulos de busca da MESMA função, ex.: ['product designer', 'ux designer'].",
+      },
+    },
+    required: ["queries"],
+  },
+};
+
+export const MARKET_INTEL_EXTRACTION_SYSTEM_PROMPT = `Você é um analista de mercado de trabalho que estrutura anúncios de vaga.
+Para CADA vaga fornecida, extraia exatamente o que está escrito nela — nunca
+invente nem complete com conhecimento geral.
+
+Regras:
+- relevant: true somente se a vaga é da MESMA função pesquisada (área e
+  natureza do trabalho). Um "Apparel Product Designer" NÃO é relevante para
+  uma pesquisa de Product Designer digital. Na dúvida, false.
+- normalizedTitle: o título limpo, sem senioridade, localização ou enfeites
+  ("Sr. Product Designer (Remote) - LATAM" → "Product Designer").
+- skills: competências/conhecimentos EXIGIDOS OU DESEJADOS no texto
+  (ex.: "user research", "design systems", "inglês fluente").
+- tools: ferramentas/tecnologias NOMEADAS (ex.: "Figma", "Salesforce").
+- responsibilities: responsabilidades do dia a dia, cada uma resumida em
+  2-5 palavras em pt-BR (ex.: "conduzir pesquisas com usuários").
+- seniority: pelo texto (título + requisitos de anos). "unclear" se não der.
+Responda chamando a tool com um item por vaga, NA MESMA ORDEM.`;
+
+export function buildMarketIntelExtractionUserPrompt(role: string, jobs: string[]): string {
+  const blocks = jobs.map((text, i) => `--- VAGA ${i + 1} ---\n${text}`).join("\n\n");
+  return `Função pesquisada (referência de relevância): ${role}
+
+${jobs.length} vagas para extrair:
+
+${blocks}
+
+Extraia a estrutura de cada vaga, na ordem, e chame "submit_job_extractions".`;
+}
+
+export const MARKET_INTEL_EXTRACTION_TOOL: Anthropic.Tool = {
+  name: "submit_job_extractions",
+  description: "Envia a extração estruturada de cada vaga, na mesma ordem do input.",
+  input_schema: {
+    type: "object",
+    properties: {
+      extractions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            relevant: { type: "boolean" },
+            normalizedTitle: { type: "string" },
+            seniority: {
+              type: "string",
+              enum: ["junior", "mid", "senior", "lead_plus", "unclear"],
+            },
+            skills: { type: "array", maxItems: 12, items: { type: "string" } },
+            tools: { type: "array", maxItems: 10, items: { type: "string" } },
+            responsibilities: { type: "array", maxItems: 8, items: { type: "string" } },
+          },
+          required: ["relevant", "normalizedTitle", "seniority", "skills", "tools", "responsibilities"],
+        },
+      },
+    },
+    required: ["extractions"],
+  },
+};
+
+export const MARKET_INTEL_INSIGHTS_SYSTEM_PROMPT = `Você é um analista de inteligência de mercado escrevendo para um
+profissional brasileiro que quer uma vaga internacional. Você recebe
+estatísticas JÁ CALCULADAS sobre vagas reais desse mercado.
+
+Escreva o bloco "O que mais chamou atenção": 2 a 4 parágrafos curtos em
+pt-BR com os insights NÃO ÓBVIOS que os números revelam — contrastes,
+ausências surpreendentes, sinais de tendência. Todo número citado DEVE vir
+literalmente das estatísticas fornecidas (percentuais e contagens) — é
+proibido inventar, extrapolar ou arredondar além do fornecido. Não repita a
+lista inteira: escolha o que importa. Tom: estratégico, direto, sem clichê
+de coach. Não use bullets — prosa.`;
+
+export function buildMarketIntelInsightsUserPrompt(
+  role: string,
+  regionLabel: string,
+  statsJson: string,
+): string {
+  return `Cargo pesquisado: ${role}
+Mercado: ${regionLabel}
+
+Estatísticas calculadas (única fonte de números permitida):
+
+${statsJson}
+
+Escreva o bloco de insights e chame "submit_market_insights".`;
+}
+
+export const MARKET_INTEL_INSIGHTS_TOOL: Anthropic.Tool = {
+  name: "submit_market_insights",
+  description: "Envia o texto do bloco 'O que mais chamou atenção'.",
+  input_schema: {
+    type: "object",
+    properties: {
+      insights: {
+        type: "string",
+        description: "2-4 parágrafos em pt-BR, apenas com números presentes nas estatísticas.",
+      },
+    },
+    required: ["insights"],
+  },
+};

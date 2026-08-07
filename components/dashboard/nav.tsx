@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
+  Radar,
   ScanSearch,
   History,
   Users,
@@ -35,6 +36,18 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: null,
     items: [{ href: "/dashboard", label: "Dashboard", mobileLabel: "Início", icon: LayoutDashboard }],
+  },
+  {
+    // Passo 1 da jornada: entender o mercado ANTES de otimizar qualquer coisa.
+    label: "Mercado",
+    items: [
+      {
+        href: "/tools/market-intel",
+        label: "Market Intelligence",
+        mobileLabel: "Mercado",
+        icon: Radar,
+      },
+    ],
   },
   {
     label: "LinkedIn",

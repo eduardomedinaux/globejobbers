@@ -48,14 +48,16 @@ export default async function DashboardPage() {
 
   // Headline não tem mais card próprio: virou aba do LinkedIn Review, e o
   // limite dela aparece dentro da própria aba.
-  const [cvTailorUsage, linkedinReviewUsage, networkingUsage, postUsage] = user
+  const [marketIntelUsage, cvTailorUsage, linkedinReviewUsage, networkingUsage, postUsage] = user
     ? await Promise.all([
+        getUsageStatus(user.id, "market_intel", plan),
         getUsageStatus(user.id, "cv_tailor", plan),
         getUsageStatus(user.id, "linkedin_review", plan),
         getUsageStatus(user.id, "networking", plan),
         getUsageStatus(user.id, "post", plan),
       ])
     : [
+        { used: 0, limit: FREE_LIMITS.market_intel, remaining: FREE_LIMITS.market_intel, limitReached: false },
         { used: 0, limit: FREE_LIMITS.cv_tailor, remaining: FREE_LIMITS.cv_tailor, limitReached: false },
         {
           used: 0,
@@ -74,6 +76,15 @@ export default async function DashboardPage() {
     href: string;
     remainingLabel: string;
   }[] = [
+    {
+      // Passo 1 da jornada: entender o mercado antes de otimizar.
+      icon: "radar",
+      name: "Market Intelligence",
+      description:
+        "Centenas de vagas reais analisadas: nomenclaturas, skills, ferramentas e senioridade do mercado que você quer.",
+      href: "/tools/market-intel",
+      remainingLabel: remainingLabel(marketIntelUsage.remaining, marketIntelUsage.limit),
+    },
     {
       icon: "scan-search",
       name: "LinkedIn Review",

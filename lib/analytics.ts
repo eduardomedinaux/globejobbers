@@ -65,7 +65,12 @@ export type AnalyticsEvent =
   | "post_failed"
   // Dashboard vivo (ativos: Perfil de Mercado + perfil salvo)
   | "profile_document_uploaded"
-  | "asset_mission_clicked";
+  | "asset_mission_clicked"
+  // Market Intelligence (passo 1 da jornada)
+  | "market_intel_viewed"
+  | "market_intel_started"
+  | "market_intel_completed"
+  | "market_intel_failed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

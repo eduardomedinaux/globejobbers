@@ -55,6 +55,7 @@ export interface LeadPayload {
 
 /** Identifica a ferramenta em `analyses.tool_type` e em lib/usage.ts. */
 export type ToolType =
+  | "market_intel"
   | "headline"
   | "cv_tailor"
   | "linkedin_review"
@@ -63,6 +64,7 @@ export type ToolType =
 
 /** Label de exibição por ferramenta (ver app/(app)/history, dashboard). */
 export const TOOL_TYPE_LABELS: Record<ToolType, string> = {
+  market_intel: "Market Intelligence",
   headline: "Headline Optimizer",
   cv_tailor: "CV Tailor",
   linkedin_review: "LinkedIn Review",
@@ -386,4 +388,79 @@ export interface MarketProfileJobRef {
   /** Primeira linha da vaga — normalmente o título. */
   title: string;
   chars: number;
+}
+
+// --- Market Intelligence (passo 1 da jornada — ver claude/MVP-MARKET-INTELLIGENCE.md) ---
+//
+// O usuário informa cargo + região; o sistema coleta centenas de vagas
+// reais (JSearch), extrai estrutura com IA e AGREGA EM CÓDIGO (números
+// auditáveis, mesmo princípio do Match). O bloco de insight (Sonnet) é
+// escrito A PARTIR dos percentuais calculados — nunca inventa números.
+// Exatamente 6 blocos. Sem gráficos, sem PDF, sem empresas, sem salário.
+
+export type MarketIntelRegion = "us" | "europe" | "latam" | "br";
+
+export const MARKET_INTEL_REGION_OPTIONS: { value: MarketIntelRegion; label: string }[] = [
+  { value: "us", label: "Estados Unidos (remoto)" },
+  { value: "europe", label: "Europa (remoto)" },
+  { value: "latam", label: "LATAM (remoto)" },
+  { value: "br", label: "Brasil" },
+];
+
+export const MARKET_INTEL_REGION_LABELS: Record<MarketIntelRegion, string> = Object.fromEntries(
+  MARKET_INTEL_REGION_OPTIONS.map(({ value, label }) => [value, label]),
+) as Record<MarketIntelRegion, string>;
+
+export type MarketIntelSeniority = "junior" | "mid" | "senior" | "lead_plus" | "unclear";
+
+export const MARKET_INTEL_SENIORITY_LABELS: Record<MarketIntelSeniority, string> = {
+  junior: "Júnior",
+  mid: "Pleno",
+  senior: "Sênior",
+  lead_plus: "Lead / Principal+",
+  unclear: "Não especificada",
+};
+
+/** Extração estruturada de UMA vaga (Haiku, em lotes — ver lib/anthropic.ts). */
+export interface MarketIntelJobExtraction {
+  /** false = a vaga não é do cargo pesquisado (ex.: Apparel Designer em busca de Product Designer). */
+  relevant: boolean;
+  /** Título normalizado (sem senioridade/localização): "Product Designer". */
+  normalizedTitle: string;
+  seniority: MarketIntelSeniority;
+  skills: string[];
+  tools: string[];
+  responsibilities: string[];
+}
+
+/** Um item de ranking com a contagem auditável. */
+export interface MarketIntelCount {
+  term: string;
+  count: number;
+  /** % sobre as vagas relevantes analisadas. */
+  percent: number;
+}
+
+/** O relatório final — `kind` discrimina em `analyses.output_data`. */
+export interface MarketIntelReport {
+  kind: "market_intel";
+  role: string;
+  region: MarketIntelRegion;
+  /** Vagas únicas e relevantes que sustentam os números. */
+  jobsAnalyzed: number;
+  /** Vagas únicas coletadas antes do filtro de relevância. */
+  jobsCollected: number;
+  generatedAt: string;
+  /** Bloco 1 — como o mercado chama esse cargo. */
+  titles: MarketIntelCount[];
+  /** Bloco 2 — skills mais pedidas. */
+  skills: MarketIntelCount[];
+  /** Bloco 3 — ferramentas mais pedidas. */
+  tools: MarketIntelCount[];
+  /** Bloco 4 — responsabilidades mais frequentes. */
+  responsibilities: MarketIntelCount[];
+  /** Bloco 5 — distribuição de senioridade. */
+  seniority: { level: MarketIntelSeniority; count: number; percent: number }[];
+  /** Bloco 6 — "O que mais chamou atenção" (Sonnet, a partir dos números acima). */
+  insights: string;
 }
