@@ -393,6 +393,7 @@ export function MarketHeadlineWizard() {
 
       {step === "extracting" && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0F4D4A]" aria-hidden />
           <p className="text-[14px] font-medium text-[#0F4D4A]">
             Lendo as vagas e identificando seu mercado-alvo…
           </p>
@@ -571,6 +572,7 @@ export function MarketHeadlineWizard() {
 
       {step === "generating" && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0F4D4A]" aria-hidden />
           <p className="text-[14px] font-medium text-[#0F4D4A]">
             Escrevendo sua headline com as palavras que recrutadores buscam…
           </p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PostResultView } from "@/components/tools/post-result";
 import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
@@ -153,6 +154,7 @@ export default function PostsPage() {
 
       {step === "loading" && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0F4D4A]" aria-hidden />
           <p className="text-[14px] font-medium text-[#0F4D4A]">
             Transformando sua história em posicionamento…
           </p>

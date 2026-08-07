@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
 import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
@@ -183,6 +184,7 @@ export function LinkedinReviewTool() {
 
       {step === "loading" && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0F4D4A]" aria-hidden />
           <p className="text-[14px] font-medium text-[#0F4D4A]">
             Analisando seu perfil em 8 categorias…
           </p>

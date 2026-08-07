@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { MarketIntelReportView } from "@/components/tools/market-intel-report";
 import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
 import { Label } from "@/components/ui/label";
@@ -250,6 +250,7 @@ export default function MarketIntelPage() {
 
       {step === "running" && (
         <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0F4D4A]" aria-hidden />
           <p className="text-[14px] font-medium text-[#0F4D4A]">{progress.label}</p>
           <div className="h-1.5 w-full max-w-[360px] rounded-full bg-[#F0F0EA]">
             <div
