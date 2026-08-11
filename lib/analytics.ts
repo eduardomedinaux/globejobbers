@@ -70,7 +70,11 @@ export type AnalyticsEvent =
   | "market_intel_viewed"
   | "market_intel_started"
   | "market_intel_completed"
-  | "market_intel_failed";
+  | "market_intel_failed"
+  // Billing (Stripe)
+  | "checkout_started"
+  | "checkout_failed"
+  | "portal_opened";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

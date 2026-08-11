@@ -155,6 +155,17 @@ grant select, insert, update on public.market_profiles to service_role;
 
 alter table public.profiles add column if not exists plan_expires_at timestamptz;
 
+-- Stripe (08/ago/2026): liga o usuário ao customer do Stripe. O acesso em
+-- si continua em plan/plan_expires_at — o webhook do Stripe só escreve
+-- nessas colunas (invoice.paid estende; ver app/api/webhooks/stripe).
+-- MIGRAÇÃO (rodar uma vez em produção):
+--   alter table public.profiles add column if not exists stripe_customer_id text;
+--   create index if not exists profiles_stripe_customer_idx
+--     on public.profiles (stripe_customer_id);
+alter table public.profiles add column if not exists stripe_customer_id text;
+create index if not exists profiles_stripe_customer_idx
+  on public.profiles (stripe_customer_id);
+
 create table if not exists public.pro_grants (
   id uuid primary key default gen_random_uuid(),
   email text not null,

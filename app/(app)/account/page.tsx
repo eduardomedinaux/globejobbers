@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { resolveEffectivePlan } from "@/lib/plan";
 import { PRO_LIMITS } from "@/lib/usage";
 import { LogoutButton } from "@/components/dashboard/logout-button";
+import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
@@ -15,7 +16,7 @@ export default async function AccountPage() {
   const { data: profile } = user
     ? await admin
         .from("profiles")
-        .select("name, email, avatar_url, plan, plan_expires_at")
+        .select("name, email, avatar_url, plan, plan_expires_at, stripe_customer_id")
         .eq("id", user.id)
         .maybeSingle()
     : { data: null };
@@ -75,6 +76,12 @@ export default async function AccountPage() {
             >
               Ver planos
             </Link>
+          </div>
+        )}
+        {/* Quem assina pelo Stripe gerencia por lá (cartão, cancelamento, faturas). */}
+        {profile?.stripe_customer_id && (
+          <div className="mt-4">
+            <ManageSubscriptionButton />
           </div>
         )}
       </div>

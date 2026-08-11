@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { ViewTracker } from "@/components/analytics/view-tracker";
+import { SubscribeButton } from "@/components/billing/subscribe-button";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getPlanStatus } from "@/lib/plan";
 import { PRO_LIMITS } from "@/lib/usage";
@@ -75,14 +76,7 @@ export default async function AssinaturaPage() {
             </span>
             <span className="text-[14px] text-[#8A8A85]">/mês</span>
           </p>
-          <button
-            type="button"
-            disabled
-            className="mt-5 cursor-not-allowed rounded-lg border border-[#E2E2DC] bg-[#FAFAF8] px-4 py-2.5 text-[13.5px] font-semibold text-[#A0A09B]"
-            title="Estamos ativando o pagamento — disponível em breve"
-          >
-            Em breve
-          </button>
+          <SubscribeButton plan="monthly" variant="secondary" />
         </div>
 
         {/* Anual */}
@@ -102,14 +96,7 @@ export default async function AssinaturaPage() {
           <p className="mt-0.5 text-[12.5px] text-[#8A8A85]">
             R$ {ANNUAL_PRICE} cobrados uma vez por ano
           </p>
-          <button
-            type="button"
-            disabled
-            className="mt-5 cursor-not-allowed rounded-lg border border-[#E2E2DC] bg-[#FAFAF8] px-4 py-2.5 text-[13.5px] font-semibold text-[#A0A09B]"
-            title="Estamos ativando o pagamento — disponível em breve"
-          >
-            Em breve
-          </button>
+          <SubscribeButton plan="annual" variant="primary" />
         </div>
       </div>
 
