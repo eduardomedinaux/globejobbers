@@ -36,6 +36,42 @@ async function stripeRequest<T>(path: string, params: URLSearchParams): Promise<
   return data as T;
 }
 
+async function stripeGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${STRIPE_API}/${path}`, {
+    headers: { Authorization: `Bearer ${requireKey()}` },
+    cache: "no-store",
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const message =
+      typeof data?.error?.message === "string" ? data.error.message : `Stripe HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return data as T;
+}
+
+/** Acha o customer pelo e-mail (fallback quando ainda não gravamos o id). */
+export async function findCustomerIdByEmail(email: string): Promise<string | null> {
+  const data = await stripeGet<{ data?: { id?: string }[] }>(
+    `customers?email=${encodeURIComponent(email)}&limit=1`,
+  );
+  return data.data?.[0]?.id ?? null;
+}
+
+/** Fim do período pago (epoch s) da assinatura ativa mais longa do customer. */
+export async function fetchActiveSubscriptionPeriodEnd(customerId: string): Promise<number | null> {
+  const data = await stripeGet<{
+    data?: { status?: string; current_period_end?: number; items?: { data?: { current_period_end?: number }[] } }[];
+  }>(`subscriptions?customer=${encodeURIComponent(customerId)}&status=active&limit=5`);
+  let max = 0;
+  for (const sub of data.data ?? []) {
+    const subEnd = sub.current_period_end ?? 0;
+    const itemEnd = (sub.items?.data ?? []).reduce((m, i) => Math.max(m, i.current_period_end ?? 0), 0);
+    max = Math.max(max, subEnd, itemEnd);
+  }
+  return max > 0 ? max : null;
+}
+
 export type BillingPlan = "monthly" | "annual";
 
 export function priceIdFor(plan: BillingPlan): string {

@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/supabase-server";
 import { getActiveMarketProfile } from "@/lib/market-profile";
 import { getActiveDocument, toDocumentSummary } from "@/lib/user-documents";
 import { getPlanStatus } from "@/lib/plan";
+import { syncStripeForUser } from "@/lib/billing-sync";
 import { getUsageStatus, FREE_LIMITS } from "@/lib/usage";
 import { getRecentAnalyses } from "@/lib/history";
 import { TARGET_MARKET_LABELS, TOOL_TYPE_LABELS, type MarketKeyword } from "@/lib/types";
@@ -18,8 +19,19 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { checkout?: string };
+}) {
   const user = await getCurrentUser();
+
+  // Voltou do Stripe Checkout: sincroniza direto com o Stripe ANTES de ler
+  // o plano — o acesso não depende do webhook no momento da compra.
+  if (user && searchParams?.checkout === "success") {
+    await syncStripeForUser(user.id, user.email ?? "");
+  }
+
   // Layout já garante user !== null aqui — checado de novo só pro TS.
   const recentAnalyses = user ? await getRecentAnalyses(user.id, 5) : [];
 
