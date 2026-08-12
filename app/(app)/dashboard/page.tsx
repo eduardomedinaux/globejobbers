@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ViewTracker } from "@/components/analytics/view-tracker";
 import { AssetCards } from "@/components/dashboard/asset-cards";
 import { ToolCard, type ToolIcon } from "@/components/dashboard/tool-card";
@@ -27,9 +28,13 @@ export default async function DashboardPage({
   const user = await getCurrentUser();
 
   // Voltou do Stripe Checkout: sincroniza direto com o Stripe ANTES de ler
-  // o plano — o acesso não depende do webhook no momento da compra.
+  // o plano — o acesso não depende do webhook no momento da compra. O
+  // redirect limpo em seguida garante que header E página renderizem já
+  // como Pro (layout e page renderizam em paralelo; sem o redirect, o
+  // header desta requisição leria o plano antes do sync terminar).
   if (user && searchParams?.checkout === "success") {
     await syncStripeForUser(user.id, user.email ?? "");
+    redirect("/dashboard");
   }
 
   // Layout já garante user !== null aqui — checado de novo só pro TS.
