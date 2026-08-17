@@ -13,6 +13,7 @@ const MONTHLY_PRICE = 69;
 const ANNUAL_PRICE = 588; // = R$ 49/mês, "2 meses grátis" vs 12x mensal
 
 const FEATURES = [
+  `${PRO_LIMITS.market_intel} relatórios Market Intelligence por mês (vagas reais do seu mercado)`,
   `${PRO_LIMITS.linkedin_review} LinkedIn Reviews por mês`,
   `${PRO_LIMITS.cv_tailor} CVs adaptados por vaga, com download em PDF`,
   `${PRO_LIMITS.headline} headlines otimizadas pro seu mercado-alvo`,
