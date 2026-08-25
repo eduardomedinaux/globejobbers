@@ -119,6 +119,27 @@ export async function POST(request: NextRequest) {
 
   const jobs = sourced.jobs.slice(0, MAX_JOBS);
   if (jobs.length < 10) {
+    // Poucas vagas PORQUE A FONTE FALHOU ≠ mercado sem vagas. Quando a
+    // coleta veio bloqueada (429 = cota/rate limit do JSearch) ou quase
+    // toda falhou, a culpa não é da nomenclatura do usuário — dizer "tente
+    // outro cargo" aqui minaria a credibilidade do produto. Mensagem de
+    // indisponibilidade temporária + log pro dono agir (cota do JSearch!).
+    const sourceDown =
+      sourced.rateLimited || (sourced.requestsUsed > 0 && sourced.failedRequests >= sourced.requestsUsed);
+    if (sourceDown) {
+      console.error("MARKET_INTEL_SOURCE_UNAVAILABLE", {
+        rateLimited: sourced.rateLimited,
+        failedRequests: sourced.failedRequests,
+        requestsUsed: sourced.requestsUsed,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Nossa coleta de vagas está com alta demanda neste momento. Tente de novo em alguns minutos — nenhum uso do seu plano foi consumido.",
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
       {
         error:

@@ -121,7 +121,15 @@ export async function searchJobs(
   roleQueries: string[],
   region: MarketIntelRegion,
   maxRequests: number,
-): Promise<{ jobs: SourcedJob[]; requestsUsed: number; collected: number }> {
+): Promise<{
+  jobs: SourcedJob[];
+  requestsUsed: number;
+  collected: number;
+  /** Páginas que falharam (erro HTTP/rede) — coleta parcial ainda vale. */
+  failedRequests: number;
+  /** Alguma falha foi HTTP 429 (cota/rate limit do JSearch estourada). */
+  rateLimited: boolean;
+}> {
   const apiKey = process.env.JSEARCH_KEY;
   if (!apiKey) {
     throw new Error("JSEARCH_KEY não configurada no ambiente.");
@@ -132,6 +140,8 @@ export async function searchJobs(
 
   const tasks: Promise<JSearchJob[]>[] = [];
   let requestsUsed = 0;
+  let failedRequests = 0;
+  let rateLimited = false;
   for (const roleQuery of roleQueries) {
     const { query, country } = regionParams(region, roleQuery);
     for (let page = 1; page <= pagesPerQuery && requestsUsed < maxRequests; page++) {
@@ -139,6 +149,11 @@ export async function searchJobs(
       tasks.push(
         fetchPage(apiKey, query, country, page, remoteOnly).catch((error) => {
           // Uma página que falha não derruba o relatório — coleta parcial vale.
+          // Mas o chamador precisa saber DISTINGUIR "mercado sem vagas" de
+          // "fonte indisponível" (429 = cota do JSearch estourada) pra não
+          // culpar o cargo do usuário por falha nossa.
+          failedRequests++;
+          if (String(error).includes("429")) rateLimited = true;
           console.error("MARKET_INTEL_FETCH_PAGE_FAILED", { roleQuery, page, error: String(error) });
           return [] as JSearchJob[];
         }),
@@ -175,5 +190,5 @@ export async function searchJobs(
     });
   }
 
-  return { jobs, requestsUsed, collected: raw.length };
+  return { jobs, requestsUsed, collected: raw.length, failedRequests, rateLimited };
 }
