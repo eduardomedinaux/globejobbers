@@ -24,6 +24,19 @@ const JSEARCH_HOST = "jsearch.p.rapidapi.com";
 // search-v2: resposta em data.jobs (o /search antigo devolvia array direto).
 const JSEARCH_ENDPOINT = `https://${JSEARCH_HOST}/search-v2`;
 
+// O JSearch tem limite de VELOCIDADE além da cota mensal: rajada de 24
+// requisições paralelas leva 429 em quase todas (visto em produção em
+// 04/set: 23 de 24 falharam, 1 passou). Coleta em ondas pequenas com pausa
+// entre elas + uma rodada de retry pras páginas que levarem 429. Custo:
+// coleta passa de ~3s pra ~15-25s — a barra de progresso da UI cobre.
+const FETCH_CONCURRENCY = 3;
+const FETCH_WAVE_DELAY_MS = 1200;
+const RETRY_DELAY_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * "Empregadores" que na verdade são boards republicadores (medido no spike:
  * ~35% das vagas). Não dá pra confiar neles como empresa; a vaga em si
@@ -138,31 +151,70 @@ export async function searchJobs(
   const remoteOnly = region !== "br"; // no BR aceitamos híbrido/presencial também
   const pagesPerQuery = Math.max(1, Math.floor(maxRequests / Math.max(1, roleQueries.length)));
 
-  const tasks: Promise<JSearchJob[]>[] = [];
-  let requestsUsed = 0;
-  let failedRequests = 0;
-  let rateLimited = false;
+  // Monta a lista de páginas a buscar (respeitando o teto de requisições).
+  interface PageSpec {
+    roleQuery: string;
+    query: string;
+    country: string;
+    page: number;
+  }
+  const specs: PageSpec[] = [];
   for (const roleQuery of roleQueries) {
     const { query, country } = regionParams(region, roleQuery);
-    for (let page = 1; page <= pagesPerQuery && requestsUsed < maxRequests; page++) {
-      requestsUsed++;
-      tasks.push(
-        fetchPage(apiKey, query, country, page, remoteOnly).catch((error) => {
-          // Uma página que falha não derruba o relatório — coleta parcial vale.
-          // Mas o chamador precisa saber DISTINGUIR "mercado sem vagas" de
-          // "fonte indisponível" (429 = cota do JSearch estourada) pra não
-          // culpar o cargo do usuário por falha nossa.
-          failedRequests++;
-          if (String(error).includes("429")) rateLimited = true;
-          console.error("MARKET_INTEL_FETCH_PAGE_FAILED", { roleQuery, page, error: String(error) });
-          return [] as JSearchJob[];
-        }),
-      );
+    for (let page = 1; page <= pagesPerQuery && specs.length < maxRequests; page++) {
+      specs.push({ roleQuery, query, country, page });
     }
   }
 
-  const pages = await Promise.all(tasks);
-  const raw = pages.flat();
+  let requestsUsed = 0;
+  let failedRequests = 0;
+  let rateLimited = false;
+  const results: JSearchJob[][] = [];
+  const retryQueue: PageSpec[] = [];
+
+  // Ondas de FETCH_CONCURRENCY com pausa entre elas. Uma página que falha
+  // não derruba o relatório — coleta parcial vale. Mas o chamador precisa
+  // DISTINGUIR "mercado sem vagas" de "fonte indisponível" (429 = cota ou
+  // velocidade do JSearch) pra não culpar o cargo do usuário por falha nossa.
+  const runWaves = async (list: PageSpec[], isRetry: boolean) => {
+    for (let i = 0; i < list.length; i += FETCH_CONCURRENCY) {
+      const wave = list.slice(i, i + FETCH_CONCURRENCY);
+      const settled = await Promise.all(
+        wave.map(async (spec) => {
+          requestsUsed++;
+          try {
+            return await fetchPage(apiKey, spec.query, spec.country, spec.page, remoteOnly);
+          } catch (error) {
+            const is429 = String(error).includes("429");
+            if (is429) rateLimited = true;
+            if (is429 && !isRetry) {
+              // 429 na primeira passada ganha uma segunda chance.
+              retryQueue.push(spec);
+            } else {
+              failedRequests++;
+              console.error("MARKET_INTEL_FETCH_PAGE_FAILED", {
+                roleQuery: spec.roleQuery,
+                page: spec.page,
+                retry: isRetry,
+                error: String(error),
+              });
+            }
+            return [] as JSearchJob[];
+          }
+        }),
+      );
+      results.push(...settled);
+      if (i + FETCH_CONCURRENCY < list.length) await sleep(FETCH_WAVE_DELAY_MS);
+    }
+  };
+
+  await runWaves(specs, false);
+  if (retryQueue.length > 0) {
+    await sleep(RETRY_DELAY_MS);
+    await runWaves(retryQueue.splice(0), true);
+  }
+
+  const raw = results.flat();
 
   const seen = new Set<string>();
   const jobs: SourcedJob[] = [];
