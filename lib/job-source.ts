@@ -36,7 +36,11 @@ const RETRY_DELAY_MS = 2000;
 // (visto em produção: coleta sem teto estourou os 60s e deu 504). Ao
 // esgotar o orçamento, paramos de buscar e seguimos com o que veio —
 // coleta parcial vale mais que timeout.
-const TIME_BUDGET_MS = 35_000;
+const TIME_BUDGET_MS = 32_000;
+// Timeout POR REQUISIÇÃO: sob throttle o JSearch às vezes não responde 429
+// rápido — ele segura a conexão. Sem abort, uma onda pendurada leva a rota
+// inteira ao 504 (visto em produção em 04/set, mesmo com o orçamento).
+const FETCH_TIMEOUT_MS = 6_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -117,11 +121,19 @@ async function fetchPage(
   });
   if (remoteOnly) params.set("work_from_home", "true");
 
-  const res = await fetch(`${JSEARCH_ENDPOINT}?${params}`, {
-    headers: { "X-RapidAPI-Key": apiKey, "X-RapidAPI-Host": JSEARCH_HOST },
-    // Cache do Next desligado: cada relatório fresco coleta dados frescos.
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${JSEARCH_ENDPOINT}?${params}`, {
+      headers: { "X-RapidAPI-Key": apiKey, "X-RapidAPI-Host": JSEARCH_HOST },
+      // Cache do Next desligado: cada relatório fresco coleta dados frescos.
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     throw new Error(`JSearch HTTP ${res.status}`);
   }
@@ -229,6 +241,17 @@ export async function searchJobs(
   }
 
   const raw = results.flat();
+
+  // Resumo da coleta nos logs — é o que diz, em produção, se o rate limit
+  // do plano atual é folgado ou apertado (páginas ok vs 429 vs timeout).
+  console.log("MARKET_INTEL_FETCH_SUMMARY", {
+    pages: specs.length,
+    ok: results.filter((r) => r.length > 0).length,
+    failedRequests,
+    rateLimited,
+    rawJobs: raw.length,
+    elapsedMs: Date.now() - startedAt,
+  });
 
   const seen = new Set<string>();
   const jobs: SourcedJob[] = [];
