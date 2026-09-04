@@ -10,9 +10,11 @@ import type { MarketIntelRegion, MarketIntelReport } from "@/lib/types";
 export const maxDuration = 60;
 
 const REGIONS: MarketIntelRegion[] = ["us", "europe", "latam", "br"];
-// Teto de requisições ao JSearch por relatório fresco (custo previsível:
-// free tier = 200/mês → ~8 relatórios; plano Pro US$25 = 10k/mês).
-const MAX_SOURCE_REQUESTS = 24;
+// Teto de requisições ao JSearch por relatório fresco. Era 24; caiu pra 12
+// em 04/set: o JSearch tem rate limit por segundo, a coleta virou ondas
+// com pausa (lib/job-source.ts) e 24 páginas não cabiam no maxDuration=60
+// da Vercel. 12 páginas ≈ até ~120 vagas brutas — o suficiente pro MAX_JOBS.
+const MAX_SOURCE_REQUESTS = 12;
 // Teto de vagas que seguem pra extração (controla custo Haiku e nº de lotes).
 const MAX_JOBS = 120;
 // Mesmo valor usado em ../extract/route.ts — vagas por lote de extração.

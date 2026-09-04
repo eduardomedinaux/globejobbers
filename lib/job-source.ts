@@ -29,9 +29,14 @@ const JSEARCH_ENDPOINT = `https://${JSEARCH_HOST}/search-v2`;
 // 04/set: 23 de 24 falharam, 1 passou). Coleta em ondas pequenas com pausa
 // entre elas + uma rodada de retry pras páginas que levarem 429. Custo:
 // coleta passa de ~3s pra ~15-25s — a barra de progresso da UI cobre.
-const FETCH_CONCURRENCY = 3;
-const FETCH_WAVE_DELAY_MS = 1200;
+const FETCH_CONCURRENCY = 2;
+const FETCH_WAVE_DELAY_MS = 1000;
 const RETRY_DELAY_MS = 2000;
+// Orçamento de tempo da coleta: a rota roda sob maxDuration=60 na Vercel
+// (visto em produção: coleta sem teto estourou os 60s e deu 504). Ao
+// esgotar o orçamento, paramos de buscar e seguimos com o que veio —
+// coleta parcial vale mais que timeout.
+const TIME_BUDGET_MS = 35_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -176,8 +181,15 @@ export async function searchJobs(
   // não derruba o relatório — coleta parcial vale. Mas o chamador precisa
   // DISTINGUIR "mercado sem vagas" de "fonte indisponível" (429 = cota ou
   // velocidade do JSearch) pra não culpar o cargo do usuário por falha nossa.
+  const startedAt = Date.now();
   const runWaves = async (list: PageSpec[], isRetry: boolean) => {
     for (let i = 0; i < list.length; i += FETCH_CONCURRENCY) {
+      if (Date.now() - startedAt > TIME_BUDGET_MS) {
+        // Orçamento esgotado: o que não foi buscado conta como falha (pro
+        // chamador saber que a coleta foi parcial), sem log por página.
+        failedRequests += list.length - i;
+        break;
+      }
       const wave = list.slice(i, i + FETCH_CONCURRENCY);
       const settled = await Promise.all(
         wave.map(async (spec) => {
@@ -209,9 +221,11 @@ export async function searchJobs(
   };
 
   await runWaves(specs, false);
-  if (retryQueue.length > 0) {
+  if (retryQueue.length > 0 && Date.now() - startedAt < TIME_BUDGET_MS) {
     await sleep(RETRY_DELAY_MS);
     await runWaves(retryQueue.splice(0), true);
+  } else {
+    failedRequests += retryQueue.length;
   }
 
   const raw = results.flat();
