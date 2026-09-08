@@ -1173,6 +1173,45 @@ export const MARKET_INTEL_EXPANSION_TOOL: Anthropic.Tool = {
   },
 };
 
+// --- Onboarding: cargo atual extraído do PDF do LinkedIn ---
+// Alimenta o passo 2 do assistente (Market Intelligence pré-preenchido).
+
+export const CURRENT_ROLE_SYSTEM_PROMPT = `Você lê o texto extraído do PDF de um perfil do LinkedIn e identifica o
+CARGO ATUAL da pessoa, no formato que o mercado internacional usa em
+anúncios de vaga (em inglês, sem senioridade e sem nome de empresa —
+"UX Designer", não "Senior UX Designer na Acme").
+Se o texto não permitir identificar com confiança, devolva confident=false.
+Responda chamando a tool.`;
+
+export function buildCurrentRoleUserPrompt(profileText: string): string {
+  return `Texto do perfil (extraído do PDF do LinkedIn):
+
+${profileText}
+
+Identifique o cargo atual em inglês, na nomenclatura de mercado, e chame
+"submit_current_role".`;
+}
+
+export const CURRENT_ROLE_TOOL: Anthropic.Tool = {
+  name: "submit_current_role",
+  description: "Envia o cargo atual identificado no perfil.",
+  input_schema: {
+    type: "object",
+    properties: {
+      role: {
+        type: "string",
+        description:
+          "Cargo atual em inglês, nomenclatura de mercado, sem senioridade nem empresa. Ex.: 'Product Designer'.",
+      },
+      confident: {
+        type: "boolean",
+        description: "false quando o texto não permite identificar o cargo com confiança.",
+      },
+    },
+    required: ["role", "confident"],
+  },
+};
+
 export const MARKET_INTEL_EXTRACTION_SYSTEM_PROMPT = `Você é um analista de mercado de trabalho que estrutura anúncios de vaga.
 Para CADA vaga fornecida, extraia exatamente o que está escrito nela — nunca
 invente nem complete com conhecimento geral.

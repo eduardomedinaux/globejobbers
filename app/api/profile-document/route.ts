@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { extractTextFromPdf } from "@/lib/pdf";
 import { validateProfileText } from "@/lib/profile-validation";
+import { extractCurrentRole } from "@/lib/anthropic";
 import {
   getActiveDocument,
   saveUserDocument,
+  setDocumentExtractedRole,
   toDocumentSummary,
   type UserDocumentKind,
 } from "@/lib/user-documents";
@@ -72,6 +74,21 @@ export async function POST(request: NextRequest) {
       { error: "Não foi possível salvar seu documento. Tente novamente." },
       { status: 500 },
     );
+  }
+
+  // Onboarding: cargo atual extraído do PDF do LinkedIn (Haiku, barato)
+  // alimenta o passo 2 (Market Intelligence pré-preenchido). Fail-open —
+  // sem cargo, o assistente pede à mão; o upload nunca falha por isso.
+  if (kind === "linkedin_pdf") {
+    try {
+      const role = await extractCurrentRole(text);
+      if (role) {
+        await setDocumentExtractedRole(saved.id, role);
+        saved.extractedRole = role;
+      }
+    } catch (error) {
+      console.error("CURRENT_ROLE_EXTRACT_FAILED", { userId: user.id, error: String(error) });
+    }
   }
 
   return NextResponse.json({ document: toDocumentSummary(saved) });

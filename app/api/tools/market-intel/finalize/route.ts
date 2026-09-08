@@ -100,10 +100,25 @@ export async function POST(request: NextRequest) {
 
   const report = buildReport(role, region, row.jobs_collected, aggregates, insights);
 
+  // Corpus enxuto fica guardado (antes era descartado com raw_jobs: null):
+  // alimenta o passo 3 do onboarding ("marque as vagas que te dão vontade")
+  // e é a semente do cache-que-vira-corpus. 20 vagas × 6KB ≈ 120KB/relatório.
+  const fullStaging = row.raw_jobs as {
+    role?: string;
+    queries?: string[];
+    jobs?: { title?: string; employer?: string; description?: string }[];
+  } | null;
+  const slimJobs = (fullStaging?.jobs ?? []).slice(0, 20).map((j) => ({
+    title: (j.title ?? "").slice(0, 200),
+    employer: (j.employer ?? "").slice(0, 120),
+    description: (j.description ?? "").slice(0, 6000),
+  }));
+  const slimStaging = { role, queries: fullStaging?.queries ?? [], jobs: slimJobs };
+
   const expiresAt = new Date(Date.now() + CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const { error: readyError } = await admin
     .from("market_reports")
-    .update({ status: "ready", report, expires_at: expiresAt, raw_jobs: null })
+    .update({ status: "ready", report, expires_at: expiresAt, raw_jobs: slimStaging })
     .eq("id", reportId);
   if (readyError) {
     // Cache que falha não pune o usuário — o relatório dele segue.

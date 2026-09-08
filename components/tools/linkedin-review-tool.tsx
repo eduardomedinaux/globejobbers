@@ -30,6 +30,9 @@ export function LinkedinReviewTool() {
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(undefined);
   const [savedDoc, setSavedDoc] = useState<UserDocumentSummary | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  // "Você já analisou" — evita refazer (e gastar uso) sem querer. Nasceu do
+  // aulão: alunos levaram ~1h pra descobrir que o Histórico existia.
+  const [lastAnalysis, setLastAnalysis] = useState<{ id: string; createdAt: string } | null>(null);
 
   useEffect(() => {
     track("linkedin_review_viewed");
@@ -50,6 +53,13 @@ export function LinkedinReviewTool() {
       .then((res) => (res.ok ? res.json() : { linkedinPdf: null }))
       .then((data) => setSavedDoc((data?.linkedinPdf ?? null) as UserDocumentSummary | null))
       .catch(() => setSavedDoc(null));
+    // Análise anterior: mostra o caminho do Histórico ANTES de gastar uso.
+    fetch("/api/history/latest?tool=linkedin_review")
+      .then((res) => (res.ok ? res.json() : { analysis: null }))
+      .then((data) =>
+        setLastAnalysis((data?.analysis ?? null) as { id: string; createdAt: string } | null),
+      )
+      .catch(() => setLastAnalysis(null));
   }, []);
 
   async function handleSubmit(useSaved: boolean) {
@@ -107,6 +117,23 @@ export function LinkedinReviewTool() {
     <div className="flex flex-col gap-6">
       {(step === "input" || step === "limit_reached") && (
         <>
+          {lastAnalysis && (
+            <div className="rounded-xl border border-[#EAEAE4] bg-[#FAFAF8] px-4 py-3 text-[13px] leading-[1.55] text-[#3F3F43]">
+              Você já analisou seu perfil em{" "}
+              {new Date(lastAnalysis.createdAt).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "short",
+              })}
+              .{" "}
+              <a
+                href={`/history/${lastAnalysis.id}`}
+                className="font-semibold text-[#0F4D4A] underline underline-offset-2"
+              >
+                Ver o resultado
+              </a>{" "}
+              não gasta uso — analise de novo só se o seu LinkedIn mudou.
+            </div>
+          )}
           {activeTarget && (
             <div className="rounded-xl bg-[#EAF1EF] px-4 py-3 text-[13px] leading-[1.55] text-[#0F4D4A]">
               Seu perfil será analisado contra o seu alvo:{" "}

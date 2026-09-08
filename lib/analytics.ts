@@ -74,7 +74,14 @@ export type AnalyticsEvent =
   // Billing (Stripe)
   | "checkout_started"
   | "checkout_failed"
-  | "portal_opened";
+  | "portal_opened"
+  // Onboarding Assistant (pós-aulão Turma Alpha — funil guiado de 3 passos)
+  | "onboarding_viewed"
+  | "onboarding_pdf_uploaded"
+  | "onboarding_market_intel_clicked"
+  | "onboarding_jobs_selected"
+  | "onboarding_completed"
+  | "onboarding_skipped";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ViewTracker } from "@/components/analytics/view-tracker";
 import { AssetCards } from "@/components/dashboard/asset-cards";
+import { OnboardingAssistant } from "@/components/dashboard/onboarding-assistant";
 import { ToolCard, type ToolIcon } from "@/components/dashboard/tool-card";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getActiveMarketProfile } from "@/lib/market-profile";
@@ -23,7 +24,7 @@ function formatDate(iso: string) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: { checkout?: string };
+  searchParams?: { checkout?: string; full?: string };
 }) {
   const user = await getCurrentUser();
 
@@ -132,6 +133,37 @@ export default async function DashboardPage({
       remainingLabel: remainingLabel(postUsage.remaining, postUsage.limit),
     },
   ];
+
+  // Onboarding Assistant: enquanto a base não está montada (PDF + Market
+  // Intelligence + Perfil de Mercado), o dashboard CONDUZ em 3 passos em
+  // vez de mostrar 6 cards soltos (aprendizado do aulão da Turma Alpha —
+  // ver claude/PROPOSTA-ONBOARDING-ASSISTANT.md). ?full=1 pula o guia.
+  const onboardingActive =
+    Boolean(user) &&
+    searchParams?.full !== "1" &&
+    !(linkedinDoc && marketIntelUsage.used > 0 && marketProfile);
+
+  if (onboardingActive) {
+    return (
+      <div className="mx-auto flex w-full max-w-[620px] flex-col gap-6">
+        <ViewTracker event="dashboard_viewed" />
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[#161618]">
+            Bem-vindo ao GlobeJobbers
+          </h1>
+          <p className="mt-1 text-[14.5px] leading-[1.6] text-[#6E6E72]">
+            Sua jornada rumo à vaga internacional começa com uma base bem
+            montada — leva poucos minutos.
+          </p>
+        </div>
+        <OnboardingAssistant
+          hasPdf={Boolean(linkedinDoc)}
+          extractedRole={linkedinDoc?.extractedRole ?? null}
+          hasMarketIntel={marketIntelUsage.used > 0}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">

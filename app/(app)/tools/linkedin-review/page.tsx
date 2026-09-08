@@ -69,7 +69,16 @@ export default function LinkedinReviewPage({
         ))}
       </div>
 
-      {tab === "review" ? <LinkedinReviewTool /> : <HeadlineTool />}
+      {/* As duas abas ficam MONTADAS (hidden alterna a visível): trocar de
+          aba não pode descartar uma análise já feita — bug relatado pelo
+          Marco no aulão da Turma Alpha ("mudei pra headline e quando voltei
+          a análise sumiu"). Estado de cada ferramenta sobrevive à troca. */}
+      <div hidden={tab !== "review"}>
+        <LinkedinReviewTool />
+      </div>
+      <div hidden={tab !== "headline"}>
+        <HeadlineTool />
+      </div>
     </div>
   );
 }

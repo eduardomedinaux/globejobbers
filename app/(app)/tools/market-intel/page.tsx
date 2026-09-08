@@ -42,6 +42,8 @@ export default function MarketIntelPage() {
 
   const [role, setRole] = useState("");
   const [region, setRegion] = useState<MarketIntelRegion>("us");
+  // Onboarding (passo 2): chegou do assistente com cargo pré-preenchido.
+  const [fromOnboarding, setFromOnboarding] = useState(false);
   const [progress, setProgress] = useState<{ label: string; pct: number }>({
     label: "",
     pct: 0,
@@ -51,6 +53,17 @@ export default function MarketIntelPage() {
 
   useEffect(() => {
     track("market_intel_viewed");
+    // Pré-preenchimento vindo do Onboarding Assistant (?role=&region=&onboarding=1).
+    // Lido do window pra não exigir Suspense de useSearchParams — roda uma
+    // vez no mount e não interfere em quem chega sem parâmetros.
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = (params.get("role") ?? "").slice(0, 80);
+    const regionParam = params.get("region") as MarketIntelRegion | null;
+    if (roleParam) setRole(roleParam);
+    if (regionParam && MARKET_INTEL_REGION_OPTIONS.some((o) => o.value === regionParam)) {
+      setRegion(regionParam);
+    }
+    if (params.get("onboarding") === "1") setFromOnboarding(true);
     return () => {
       cancelled.current = true;
     };
@@ -178,6 +191,14 @@ export default function MarketIntelPage() {
         </p>
       </div>
 
+      {fromOnboarding && step !== "result" && (
+        <div className="rounded-xl bg-[#EAF1EF] px-4 py-3 text-[13px] leading-[1.55] text-[#0F4D4A]">
+          <strong>Passo 2 do seu início:</strong> sugerimos o cargo a partir do
+          seu PDF — ajuste se quiser e clique em analisar. No final, você volta
+          pro passo 3.
+        </div>
+      )}
+
       {(step === "input" || step === "limit_reached") && (
         <>
           <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
@@ -273,6 +294,14 @@ export default function MarketIntelPage() {
       {step === "result" && report && (
         <div className="flex flex-col gap-4">
           <MarketIntelReportView report={report} />
+          {fromOnboarding && (
+            <a
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-lg bg-[#0F4D4A] px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[#0B3F3C]"
+            >
+              Continuar → escolher as vagas que você quer (passo 3)
+            </a>
+          )}
           {remaining !== null && (
             <p className="text-center text-[13px] text-[#8A8A85]">
               {remaining} relatório{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"} este mês

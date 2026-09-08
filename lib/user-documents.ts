@@ -13,6 +13,8 @@ export interface UserDocument {
   filename: string;
   content: string;
   chars: number;
+  /** Cargo atual extraído do PDF (Haiku) — alimenta o onboarding. */
+  extractedRole: string | null;
   createdAt: string;
 }
 
@@ -21,11 +23,18 @@ export interface UserDocumentSummary {
   kind: UserDocumentKind;
   filename: string;
   chars: number;
+  extractedRole: string | null;
   createdAt: string;
 }
 
 export function toDocumentSummary(doc: UserDocument): UserDocumentSummary {
-  return { kind: doc.kind, filename: doc.filename, chars: doc.chars, createdAt: doc.createdAt };
+  return {
+    kind: doc.kind,
+    filename: doc.filename,
+    chars: doc.chars,
+    extractedRole: doc.extractedRole,
+    createdAt: doc.createdAt,
+  };
 }
 
 function rowToDocument(row: Record<string, unknown>): UserDocument {
@@ -35,6 +44,7 @@ function rowToDocument(row: Record<string, unknown>): UserDocument {
     filename: (row.filename as string) ?? "documento.pdf",
     content: row.content as string,
     chars: (row.chars as number) ?? 0,
+    extractedRole: (row.extracted_role as string | null) ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -82,5 +92,20 @@ export async function saveUserDocument(
   });
   if (error) {
     console.error("USER_DOCUMENT_SAVE_FAILED", { userId, kind, error });
+  }
+}
+
+/**
+ * Grava o cargo extraído no documento. Fail-open: extração de cargo é
+ * bônus do onboarding, nunca requisito do upload.
+ */
+export async function setDocumentExtractedRole(documentId: string, role: string): Promise<void> {
+  const admin = getSupabaseAdmin();
+  const { error } = await admin
+    .from("user_documents")
+    .update({ extracted_role: role })
+    .eq("id", documentId);
+  if (error) {
+    console.error("USER_DOCUMENT_ROLE_UPDATE_FAILED", { documentId, error });
   }
 }

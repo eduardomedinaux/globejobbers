@@ -30,6 +30,9 @@ import {
   buildMarketIntelExpansionUserPrompt,
   buildMarketIntelExtractionUserPrompt,
   buildMarketIntelInsightsUserPrompt,
+  CURRENT_ROLE_SYSTEM_PROMPT,
+  CURRENT_ROLE_TOOL,
+  buildCurrentRoleUserPrompt,
   MARKET_PROFILE_SYSTEM_PROMPT,
   MARKET_PROFILE_TOOL,
   NETWORKING_SYSTEM_PROMPT,
@@ -838,6 +841,36 @@ export async function expandRoleQueries(role: string): Promise<string[]> {
     : [];
   // Fail-safe: sem expansão válida, buscamos pelo próprio cargo.
   return queries.length > 0 ? queries : [role];
+}
+
+// Só o começo do perfil basta pro cargo atual (headline + experiência mais
+// recente ficam no topo do PDF do LinkedIn) — corta custo do Haiku.
+const MAX_PROFILE_TEXT_FOR_ROLE = 4000;
+
+/**
+ * Cargo atual extraído do PDF do LinkedIn (Haiku, temp 0). Alimenta o
+ * passo 2 do onboarding (Market Intelligence pré-preenchido). null quando
+ * a IA não identifica com confiança — o assistente pede o cargo à mão.
+ */
+export async function extractCurrentRole(profileText: string): Promise<string | null> {
+  const response = await anthropic.messages.create({
+    model: EXTRACTION_MODEL,
+    max_tokens: 300,
+    temperature: 0,
+    system: CURRENT_ROLE_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildCurrentRoleUserPrompt(profileText.slice(0, MAX_PROFILE_TEXT_FOR_ROLE)) },
+    ],
+    tools: [CURRENT_ROLE_TOOL],
+    tool_choice: { type: "tool", name: CURRENT_ROLE_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") return null;
+  const input = toolUse.input as { role?: unknown; confident?: unknown };
+  const role = typeof input.role === "string" ? input.role.trim().slice(0, 80) : "";
+  if (!role || input.confident !== true) return null;
+  return role;
 }
 
 const MARKET_INTEL_SENIORITIES: MarketIntelSeniority[] = [

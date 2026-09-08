@@ -289,6 +289,9 @@ create table if not exists public.user_documents (
   filename text,
   content text not null,
   chars integer not null,
+  -- Onboarding (set/2026): cargo atual extraído do PDF pelo Haiku —
+  -- alimenta o passo 2 do assistente (Market Intelligence pré-preenchido).
+  extracted_role text,
   created_at timestamptz not null default now()
 );
 
@@ -296,4 +299,9 @@ create index if not exists user_documents_user_kind_idx
   on public.user_documents (user_id, kind, created_at desc);
 
 alter table public.user_documents enable row level security;
-grant select, insert on public.user_documents to service_role;
+-- update: a extração de cargo grava extracted_role depois do insert.
+grant select, insert, update on public.user_documents to service_role;
+
+-- MIGRAÇÃO (rodar uma vez em produção — onboarding assistant, set/2026):
+--   alter table public.user_documents add column if not exists extracted_role text;
+--   grant update on public.user_documents to service_role;
