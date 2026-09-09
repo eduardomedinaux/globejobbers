@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/wordmark";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { track } from "@/lib/analytics";
@@ -28,9 +28,34 @@ function GoogleIcon() {
   );
 }
 
+// Painel ilustrado (referência: split layout estilo Cofounder/Mobbin) com a
+// proposta de valor em rotação. SÓ features que existem — nada de promessa.
+const SLIDES: { title: string; body: string }[] = [
+  {
+    title: "Entenda o mercado antes de se otimizar pra ele",
+    body: "O Market Intelligence lê centenas de vagas reais do cargo que você quer e te entrega nomenclaturas, skills e ferramentas — com percentuais calculados, não opinião.",
+  },
+  {
+    title: "Seu perfil, medido contra o SEU alvo",
+    body: "Suba o PDF do LinkedIn e receba um raio-X honesto do seu perfil — e cada ferramenta passa a trabalhar apontada pras vagas que você quer conquistar.",
+  },
+  {
+    title: "Um currículo por vaga, sem inventar nada",
+    body: "O CV Tailor adapta seu currículo pra cada vaga com match auditável, uma página e PDF pronto — reposicionando o que você já tem, nunca criando o que você não tem.",
+  },
+];
+
+const SLIDE_INTERVAL_MS = 6000;
+
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setSlide((s) => (s + 1) % SLIDES.length), SLIDE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   async function handleGoogleLogin() {
     setIsLoading(true);
@@ -61,47 +86,88 @@ export default function LoginPage() {
     // mais nada a fazer aqui.
   }
 
+  const current = SLIDES[slide];
+
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4">
-      <div
-        className="pointer-events-none absolute left-1/2 top-[-180px] h-[480px] w-[700px] -translate-x-1/2"
+    <main className="flex min-h-screen flex-col bg-background lg:flex-row">
+      {/* Painel ilustrado — imagem em public/login-hero.jpg; sem ela, o
+          gradiente teal segura o visual sozinho (backgroundColor + overlay). */}
+      <section
+        className="relative m-3 flex min-h-[200px] flex-col justify-end overflow-hidden rounded-3xl p-6 sm:min-h-[240px] sm:p-8 lg:m-4 lg:min-h-[calc(100vh-2rem)] lg:w-[52%] lg:p-10"
         style={{
-          background: "radial-gradient(ellipse at center, rgba(15,77,74,0.06), rgba(15,77,74,0) 70%)",
+          backgroundColor: "#0F4D4A",
+          backgroundImage:
+            "linear-gradient(180deg, rgba(9,48,46,0.15) 0%, rgba(9,48,46,0.72) 100%), url('/login-hero.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
-        aria-hidden
-      />
-
-      <div className="relative flex w-full max-w-[380px] flex-col items-center gap-8 rounded-2xl border border-[#EAEAE4] bg-white p-8 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
-        <Wordmark />
-
-        <div className="text-center">
-          <h1 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.02em] text-[#161618]">
-            Entre na sua conta
-          </h1>
-          <p className="mt-2 text-[14px] leading-[1.5] text-[#6E6E72]">
-            Acesse suas ferramentas e acompanhe sua evolução rumo a vagas
-            internacionais.
+        aria-label="Sobre o GlobeJobbers"
+      >
+        <div className="max-w-[460px]">
+          <h2 className="text-[20px] font-semibold leading-[1.25] tracking-[-0.01em] text-white sm:text-[24px] lg:text-[28px]">
+            {current.title}
+          </h2>
+          <p className="mt-2 hidden text-[13.5px] leading-[1.65] text-white/85 sm:block lg:text-[14.5px]">
+            {current.body}
           </p>
         </div>
+        <div className="mt-5 flex gap-2" role="tablist" aria-label="Destaques">
+          {SLIDES.map((s, i) => (
+            <button
+              key={s.title}
+              type="button"
+              role="tab"
+              aria-selected={i === slide}
+              aria-label={`Destaque ${i + 1}`}
+              onClick={() => setSlide(i)}
+              className={`h-1.5 rounded-full transition-all ${
+                i === slide ? "w-6 bg-white" : "w-1.5 bg-white/40 hover:bg-white/60"
+              }`}
+            />
+          ))}
+        </div>
+      </section>
 
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-          className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#E2E2DC] bg-white py-3 text-[15px] font-medium text-[#1B1B1E] transition-colors hover:bg-[#FAFAF8] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <GoogleIcon />
-          {isLoading ? "Redirecionando…" : "Continue with Google"}
-        </button>
+      {/* Autenticação */}
+      <section className="flex flex-1 items-center justify-center px-4 py-10 lg:py-0">
+        <div className="flex w-full max-w-[380px] flex-col items-center gap-8">
+          <Wordmark />
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="text-center">
+            <h1 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.02em] text-[#161618]">
+              Entre na sua conta
+            </h1>
+            <p className="mt-2 text-[14px] leading-[1.5] text-[#6E6E72]">
+              Acesse suas ferramentas e acompanhe sua evolução rumo a vagas
+              internacionais.
+            </p>
+          </div>
 
-        <p className="text-center text-[12px] leading-[1.5] text-[#A0A09B]">
-          Ao continuar, você concorda que usamos seus dados profissionais
-          apenas para gerar suas análises — nunca compartilhamos seus
-          arquivos.
-        </p>
-      </div>
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#E2E2DC] bg-white py-3 text-[15px] font-medium text-[#1B1B1E] shadow-[0_1px_2px_rgba(20,20,20,0.03)] transition-colors hover:bg-[#FAFAF8] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <GoogleIcon />
+            {isLoading ? "Redirecionando…" : "Continue with Google"}
+          </button>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <p className="text-center text-[12px] leading-[1.5] text-[#A0A09B]">
+            Ao continuar, você concorda que usamos seus dados profissionais
+            apenas para gerar suas análises — nunca compartilhamos seus
+            arquivos.
+          </p>
+
+          <p className="text-center text-[12px] leading-[1.5] text-[#A0A09B]">
+            Comprou a mentoria Carreira em Dólar? Entre com o Google do{" "}
+            <strong className="font-semibold text-[#6E6E72]">mesmo e-mail da compra</strong> — seu
+            acesso Pro ativa sozinho.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
