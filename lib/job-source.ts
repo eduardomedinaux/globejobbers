@@ -74,6 +74,24 @@ function normalize(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Remove caracteres de controle (mantendo \n e \t) — JDs coletadas às vezes
+ * trazem \\u0000 e afins, que o Postgres rejeita dentro de JSON (visto em
+ * dev: PGRST102 "Empty or invalid json" ao gravar o staging).
+ */
+function sanitizeText(s: string): string {
+  return (
+    s
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+      // Surrogates órfãos (emoji quebrado vindo da JD): o JSON.stringify do
+      // Node os emite escapados, mas o parser do PostgREST rejeita a
+      // sequência — PGRST102 "Empty or invalid json" no insert do staging.
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, " ")
+      .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, " ")
+  );
+}
+
 /** Título sem sufixos de localização/observações: corta em " - ", " | ", "(". */
 function normalizeTitle(title: string): string {
   return normalize(title.replace(/\s*[-–|(].*$/, ""));
@@ -256,11 +274,11 @@ export async function searchJobs(
   const seen = new Set<string>();
   const jobs: SourcedJob[] = [];
   for (const j of raw) {
-    const title = (j.job_title ?? "").toString().slice(0, 200);
-    const description = (j.job_description ?? "").toString();
+    const title = sanitizeText((j.job_title ?? "").toString()).slice(0, 200);
+    const description = sanitizeText((j.job_description ?? "").toString());
     if (!title || description.length < 400) continue; // JD curta demais não sustenta extração
 
-    const employer = (j.employer_name ?? "").toString().slice(0, 120);
+    const employer = sanitizeText((j.employer_name ?? "").toString()).slice(0, 120);
     const isRepublisher = REPUBLISHER_NAMES.has(normalize(employer));
     const dedupeKey = isRepublisher
       ? `~board~|${normalizeTitle(title)}`
@@ -272,10 +290,10 @@ export async function searchJobs(
       dedupeKey,
       title,
       employer,
-      publisher: (j.job_publisher ?? "").toString().slice(0, 80),
+      publisher: sanitizeText((j.job_publisher ?? "").toString()).slice(0, 80),
       description: description.slice(0, 12_000),
       isRemote: j.job_is_remote === true,
-      country: (j.job_country ?? "").toString(),
+      country: sanitizeText((j.job_country ?? "").toString()).slice(0, 40),
     });
   }
 

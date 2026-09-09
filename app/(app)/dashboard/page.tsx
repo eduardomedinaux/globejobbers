@@ -5,8 +5,13 @@ import { AssetCards } from "@/components/dashboard/asset-cards";
 import { OnboardingAssistant } from "@/components/dashboard/onboarding-assistant";
 import { ToolCard, type ToolIcon } from "@/components/dashboard/tool-card";
 import { getCurrentUser } from "@/lib/supabase-server";
+import { extractCurrentRole } from "@/lib/anthropic";
 import { getActiveMarketProfile } from "@/lib/market-profile";
-import { getActiveDocument, toDocumentSummary } from "@/lib/user-documents";
+import {
+  getActiveDocument,
+  setDocumentExtractedRole,
+  toDocumentSummary,
+} from "@/lib/user-documents";
 import { getPlanStatus } from "@/lib/plan";
 import { syncStripeForUser } from "@/lib/billing-sync";
 import { getUsageStatus, FREE_LIMITS } from "@/lib/usage";
@@ -142,6 +147,23 @@ export default async function DashboardPage({
     Boolean(user) &&
     searchParams?.full !== "1" &&
     !(linkedinDoc && marketIntelUsage.used > 0 && marketProfile);
+
+  // Backfill do cargo: PDFs que entraram por OUTROS caminhos (LinkedIn
+  // Review, captura passiva do CV Tailor, uploads anteriores a esta
+  // feature) não passaram pela extração. Se o passo 2 vai abrir sem cargo,
+  // extrai agora e grava — roda no máximo uma vez por documento que dá
+  // resultado. Fail-open: sem cargo, o assistente pede digitado.
+  if (onboardingActive && linkedinDoc && !linkedinDoc.extractedRole) {
+    try {
+      const role = await extractCurrentRole(linkedinDoc.content);
+      if (role) {
+        await setDocumentExtractedRole(linkedinDoc.id, role);
+        linkedinDoc.extractedRole = role;
+      }
+    } catch (error) {
+      console.error("CURRENT_ROLE_BACKFILL_FAILED", { userId: user?.id, error: String(error) });
+    }
+  }
 
   if (onboardingActive) {
     return (

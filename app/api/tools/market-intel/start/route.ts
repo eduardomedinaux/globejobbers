@@ -165,7 +165,26 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (stagingError || !row) {
-    console.error("MARKET_INTEL_STAGING_FAILED", { userId: user.id, stagingError });
+    // payloadBytes/loneSurrogates ajudam a distinguir JSON inválido
+    // (caracteres tratados em lib/job-source sanitizeText) de payload
+    // grande demais ou de algo que a sanitização não cobriu.
+    let payloadBytes = -1;
+    let loneSurrogates = -1;
+    try {
+      const payloadStr = JSON.stringify({ role, queries, jobs });
+      payloadBytes = payloadStr.length;
+      loneSurrogates =
+        (payloadStr.match(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g) ?? []).length +
+        (payloadStr.match(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g) ?? []).length;
+    } catch {
+      // JSON não serializável — o próprio -1 é diagnóstico.
+    }
+    console.error("MARKET_INTEL_STAGING_FAILED", {
+      userId: user.id,
+      stagingError,
+      payloadBytes,
+      loneSurrogates,
+    });
     return NextResponse.json(
       { error: "Não foi possível iniciar o relatório. Tente novamente." },
       { status: 500 },
