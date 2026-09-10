@@ -24,6 +24,18 @@ melhorar) e, quando fizer sentido, um exemplo de texto melhorado (deixe
 "example" como string vazia quando não se aplicar, ex.: categorias sem um
 trecho de texto claro pra reescrever):
 
+REGRA DOS NÚMEROS NOS EXEMPLOS (inegociável): você é PROIBIDO de inventar
+métricas, valores ou fatos que não estejam evidenciados no perfil enviado.
+- Se o dado ESTÁ no perfil, use o dado real.
+- Se um exemplo pede uma métrica que NÃO está no perfil, escreva no lugar
+  um placeholder no formato estrito [[rótulo do dado||versão qualitativa]]
+  — rótulo curto dizendo qual número o usuário deve preencher, e uma versão
+  qualitativa honesta da mesma afirmação pra quem não tem o número.
+  Ex.: "increased retention by [[% de aumento de retenção||significantly]]
+  through UX-driven onboarding".
+- Use no MÁXIMO 3 placeholders por exemplo, e SÓ para métricas/fatos — o
+  restante do exemplo é texto corrido pronto pra usar, nunca um formulário.
+
 - headline: comunica especialidade, senioridade e valor com clareza pra
   quem não conhece o mercado brasileiro?
 - about: a seção "Sobre" conta uma narrativa de carreira clara, ou é
@@ -109,7 +121,8 @@ function linkedinCategoryProperty(description: string) {
       recommendation: { type: "string" as const, description: "O que fazer pra melhorar." },
       example: {
         type: "string" as const,
-        description: "Exemplo de texto melhorado, ou string vazia se não se aplicar.",
+        description:
+          "Exemplo de texto melhorado, ou string vazia se não se aplicar. Métrica não evidenciada no perfil vira placeholder [[rótulo do dado||versão qualitativa]] — nunca um número inventado.",
       },
     },
     required: ["score", "diagnosis", "recommendation", "example"],
