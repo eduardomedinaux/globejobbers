@@ -8,8 +8,8 @@ import {
   InterviewAnswerFeedbackView,
   InterviewPrepResultView,
 } from "@/components/tools/interview-prep-result";
+import { SpeechAnswerField } from "@/components/tools/speech-answer-field";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { track } from "@/lib/analytics";
 import {
   INTERVIEW_QUESTION_CATEGORY_LABELS,
@@ -221,7 +221,7 @@ export default function InterviewPrepPage() {
             <ul className="flex flex-col gap-2.5">
               {[
                 "6 perguntas prováveis pro seu cargo-alvo — geradas das skills e responsabilidades que as vagas reais pedem",
-                "Você escreve a resposta em inglês, uma pergunta por vez (pule as que quiser)",
+                "Você responde em inglês FALANDO no microfone (a transcrição aparece na tela) ou digitando — uma pergunta por vez, pule as que quiser",
                 "Feedback em português: clareza, evidência, inglês corrigido e red flags",
                 "E a versão que o candidato ideal falaria — usando só os SEUS fatos, nunca inventados",
               ].map((item) => (
@@ -297,12 +297,11 @@ export default function InterviewPrepPage() {
 
           {!currentFeedback && (
             <>
-              <Textarea
+              <SpeechAnswerField
                 value={answerDraft}
-                onChange={(e) => setAnswerDraft(e.target.value)}
-                rows={7}
-                placeholder="Answer in English, as you would say it out loud in the interview…"
-                className="text-[14px] leading-[1.6]"
+                onChange={setAnswerDraft}
+                disabled={evaluating}
+                placeholder="Answer in English — speak it out loud with the mic, or type…"
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex items-center gap-3">
