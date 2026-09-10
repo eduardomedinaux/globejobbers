@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { PlaceholderTextBox } from "@/components/data-placeholder-text";
 import {
   INTERVIEW_QUESTION_CATEGORY_LABELS,
@@ -32,6 +34,12 @@ export function InterviewAnswerFeedbackView({
   item: InterviewAnswerFeedback;
   index: number;
 }) {
+  // Progressive disclosure (mesmo padrão do LinkedIn Review): o que fica
+  // sempre visível é o ACIONÁVEL — notas + resposta do candidato ideal.
+  // Feedback, correções, red flags e a resposta original moram atrás de
+  // "Entenda essa nota" (com aviso quando há red flag).
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
       <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#8A8A85]">
@@ -47,38 +55,6 @@ export function InterviewAnswerFeedbackView({
         <ScoreBar label="Inglês" value={item.english} />
       </div>
 
-      <p className="mt-3 text-[14px] leading-[1.6] text-[#3F3F43]">{item.feedback}</p>
-
-      {item.englishFixes.length > 0 && (
-        <div className="mt-3">
-          <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#8A8A85]">
-            Correções de inglês
-          </p>
-          <ul className="mt-1 flex flex-col gap-1">
-            {item.englishFixes.map((fix) => (
-              <li key={fix} className="text-[13.5px] leading-[1.55] text-[#6E6E72]">
-                • {fix}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {item.redFlags.length > 0 && (
-        <div className="mt-3 rounded-[10px] border border-[#F0DCD4] bg-[#FBF6F3] px-4 py-3">
-          <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#A0522D]">
-            Um entrevistador estranharia
-          </p>
-          <ul className="mt-1 flex flex-col gap-1">
-            {item.redFlags.map((flag) => (
-              <li key={flag} className="text-[13.5px] leading-[1.55] text-[#7A4A35]">
-                • {flag}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <PlaceholderTextBox
         text={item.improvedAnswer}
         title="Como o candidato ideal responderia"
@@ -87,14 +63,67 @@ export function InterviewAnswerFeedbackView({
         copyLabel={`Copiar resposta melhorada da pergunta ${index + 1}`}
       />
 
-      <details className="mt-3">
-        <summary className="cursor-pointer text-[13px] font-medium text-[#8A8A85] hover:text-[#0F4D4A]">
-          Ver a resposta que você escreveu
-        </summary>
-        <p className="mt-2 whitespace-pre-line text-[13.5px] leading-[1.6] text-[#6E6E72]">
-          {item.answer}
-        </p>
-      </details>
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6E6E72] transition-colors hover:text-[#0F4D4A]"
+      >
+        <ChevronDown
+          className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+        {expanded ? "Esconder análise" : "Entenda essa nota"}
+        {!expanded && item.redFlags.length > 0 && (
+          <span className="rounded-full bg-[#FBF6F3] px-2 py-0.5 text-[11px] font-semibold text-[#A0522D]">
+            {item.redFlags.length} red flag{item.redFlags.length === 1 ? "" : "s"}
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="mt-3 flex flex-col gap-3">
+          <p className="text-[14px] leading-[1.6] text-[#3F3F43]">{item.feedback}</p>
+
+          {item.englishFixes.length > 0 && (
+            <div>
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#8A8A85]">
+                Correções de inglês
+              </p>
+              <ul className="mt-1 flex flex-col gap-1">
+                {item.englishFixes.map((fix) => (
+                  <li key={fix} className="text-[13.5px] leading-[1.55] text-[#6E6E72]">
+                    • {fix}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {item.redFlags.length > 0 && (
+            <div className="rounded-[10px] border border-[#F0DCD4] bg-[#FBF6F3] px-4 py-3">
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#A0522D]">
+                Um entrevistador estranharia
+              </p>
+              <ul className="mt-1 flex flex-col gap-1">
+                {item.redFlags.map((flag) => (
+                  <li key={flag} className="text-[13.5px] leading-[1.55] text-[#7A4A35]">
+                    • {flag}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <details>
+            <summary className="cursor-pointer text-[13px] font-medium text-[#8A8A85] hover:text-[#0F4D4A]">
+              Ver a resposta que você deu
+            </summary>
+            <p className="mt-2 whitespace-pre-line text-[13.5px] leading-[1.6] text-[#6E6E72]">
+              {item.answer}
+            </p>
+          </details>
+        </div>
+      )}
     </div>
   );
 }
