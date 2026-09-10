@@ -60,7 +60,8 @@ export type ToolType =
   | "cv_tailor"
   | "linkedin_review"
   | "networking"
-  | "post";
+  | "post"
+  | "interview_prep";
 
 /** Label de exibição por ferramenta (ver app/(app)/history, dashboard). */
 export const TOOL_TYPE_LABELS: Record<ToolType, string> = {
@@ -70,7 +71,57 @@ export const TOOL_TYPE_LABELS: Record<ToolType, string> = {
   linkedin_review: "LinkedIn Review",
   networking: "Mensagens de Networking",
   post: "Criador de Posts",
+  interview_prep: "Interview Prep",
 };
+
+// --- Interview Prep (leva 2 — ver claude/PROPOSTA-INTERVIEW-PREP.md) ---
+//
+// Sessão de treino: perguntas geradas do Perfil de Mercado (vagas reais),
+// resposta escrita em INGLÊS, feedback em PORTUGUÊS. A versão melhorada da
+// resposta herda a regra anti-invenção do Review: métrica não evidenciada
+// vira placeholder [[rótulo||versão qualitativa]].
+
+export type InterviewQuestionCategory = "intro" | "behavioral" | "role_specific" | "reverse";
+
+export const INTERVIEW_QUESTION_CATEGORY_LABELS: Record<InterviewQuestionCategory, string> = {
+  intro: "Apresentação",
+  behavioral: "Comportamental",
+  role_specific: "Do cargo",
+  reverse: "Pra VOCÊ perguntar",
+};
+
+export interface InterviewQuestion {
+  category: InterviewQuestionCategory;
+  /** A pergunta, em inglês — como um entrevistador real faria. */
+  question: string;
+  /** Por que ela é provável (PT): a skill/responsabilidade do alvo que a motiva. */
+  why: string;
+}
+
+export interface InterviewAnswerFeedback {
+  question: string;
+  /** A resposta escrita pelo usuário (EN). */
+  answer: string;
+  clarity: number;
+  evidence: number;
+  english: number;
+  /** Feedback em PT sobre conteúdo e estrutura (STAR quando couber). */
+  feedback: string;
+  /** Correções de inglês pontuais (PT explicando, com o trecho EN). */
+  englishFixes: string[];
+  /** Red flags que um entrevistador notaria — vazio quando não houver. */
+  redFlags: string[];
+  /** Versão melhorada da resposta (EN), com placeholders [[...]] se faltar métrica. */
+  improvedAnswer: string;
+}
+
+export interface InterviewPrepResult {
+  kind: "interview_prep";
+  targetRole: string;
+  targetMarketLabel: string;
+  questions: InterviewQuestion[];
+  answers: InterviewAnswerFeedback[];
+}
 
 /**
  * Respostas do modo "perguntas guiadas" do Headline Optimizer logado —

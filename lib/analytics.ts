@@ -81,7 +81,13 @@ export type AnalyticsEvent =
   | "onboarding_market_intel_clicked"
   | "onboarding_jobs_selected"
   | "onboarding_completed"
-  | "onboarding_skipped";
+  | "onboarding_skipped"
+  // Interview Prep (leva 2 — sessão de treino)
+  | "interview_prep_viewed"
+  | "interview_prep_started"
+  | "interview_prep_answer_evaluated"
+  | "interview_prep_completed"
+  | "interview_prep_failed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, FileText, Radar, ScanSearch, Users, PenSquare, type LucideIcon } from "lucide-react";
+import { Sparkles, FileText, Mic, Radar, ScanSearch, Users, PenSquare, type LucideIcon } from "lucide-react";
 import { track } from "@/lib/analytics";
 
 const ICONS = {
   sparkles: Sparkles,
   "file-text": FileText,
+  mic: Mic,
   radar: Radar,
   "scan-search": ScanSearch,
   users: Users,

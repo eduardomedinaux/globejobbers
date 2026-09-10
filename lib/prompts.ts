@@ -1324,3 +1324,166 @@ export const MARKET_INTEL_INSIGHTS_TOOL: Anthropic.Tool = {
     required: ["insights"],
   },
 };
+
+// --- Interview Prep (leva 2 — ver claude/PROPOSTA-INTERVIEW-PREP.md) ---
+//
+// Duas chamadas: gerar as perguntas da sessão (ancoradas no Perfil de
+// Mercado — vagas reais) e avaliar UMA resposta por vez. A versão melhorada
+// da resposta herda a REGRA DOS NÚMEROS do LinkedIn Review: métrica não
+// evidenciada vira placeholder [[rótulo||versão qualitativa]].
+
+export const INTERVIEW_QUESTIONS_SYSTEM_PROMPT = `Você é um recrutador internacional sênior que conduz entrevistas em inglês
+para vagas remotas. Gere EXATAMENTE 6 perguntas de entrevista realistas para
+o cargo-alvo informado, em INGLÊS, como um entrevistador real perguntaria —
+nada de fraseado de livro didático.
+
+Composição fixa das 6 perguntas, nesta ordem:
+1. category "intro": a abertura ("tell me about yourself" ou variação real).
+2-3. category "behavioral": comportamentais respondíveis em formato STAR,
+   ligadas a responsabilidades/soft skills DO ALVO informado.
+4-5. category "role_specific": técnicas/práticas do cargo, ligadas a hard
+   skills ou ferramentas DO ALVO informado.
+6. category "reverse": uma pergunta INTELIGENTE que o candidato deve fazer
+   ao entrevistador (essa também em inglês).
+
+Para cada pergunta, escreva "why" em PORTUGUÊS: por que essa pergunta é
+provável NESTE mercado, citando o termo concreto do alvo que a motiva
+(ex.: "'stakeholder management' aparece com força nas vagas do seu alvo").
+Se o prompt trouxer keywords do Perfil de Mercado, ancore as perguntas
+nelas — não em generalidades da profissão.
+
+Responda SEMPRE chamando a tool "submit_interview_questions".`;
+
+export function buildInterviewQuestionsUserPrompt(
+  targetRole: string,
+  seniority: string,
+  marketLabel: string,
+  keywordsBlock: string,
+): string {
+  return `Cargo-alvo: ${targetRole}
+Senioridade: ${seniority || "não informada"}
+Mercado: ${marketLabel}
+${keywordsBlock ? `\nKeywords do alvo (termo (recorrência entre as vagas reais)):\n${keywordsBlock}\n` : ""}
+Gere as 6 perguntas e chame "submit_interview_questions".`;
+}
+
+export const INTERVIEW_QUESTIONS_TOOL: Anthropic.Tool = {
+  name: "submit_interview_questions",
+  description: "Envia as 6 perguntas da sessão de treino de entrevista.",
+  input_schema: {
+    type: "object",
+    properties: {
+      questions: {
+        type: "array",
+        minItems: 6,
+        maxItems: 6,
+        items: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              enum: ["intro", "behavioral", "role_specific", "reverse"],
+            },
+            question: { type: "string", description: "A pergunta, em inglês." },
+            why: {
+              type: "string",
+              description:
+                "PT: por que é provável neste mercado, citando o termo concreto do alvo.",
+            },
+          },
+          required: ["category", "question", "why"],
+        },
+      },
+    },
+    required: ["questions"],
+  },
+};
+
+export const INTERVIEW_FEEDBACK_SYSTEM_PROMPT = `Você é um coach de entrevistas internacionais treinando um profissional
+brasileiro para vagas remotas em inglês. Você vai receber UMA pergunta de
+entrevista e a resposta escrita do candidato (em inglês), além do cargo-alvo
+e, quando houver, um trecho do perfil/CV real dele.
+
+Avalie a resposta com três notas de 0 a 100:
+- clarity: estrutura e clareza (para comportamentais, avalie contra STAR —
+  situação, tarefa, ação, resultado).
+- evidence: a resposta PROVA com fatos/exemplos concretos, ou só afirma?
+- english: gramática e naturalidade profissional (avalie o texto enviado,
+  sem especular sobre conversação).
+
+Escreva:
+- "feedback" em PORTUGUÊS: 2-4 frases específicas sobre ESTA resposta —
+  o que funcionou e o ajuste mais importante. Direto, sem elogio vazio.
+- "englishFixes": correções pontuais de inglês, cada uma em PT citando o
+  trecho original e a forma melhor (lista vazia se o inglês estiver limpo).
+- "redFlags": o que um entrevistador estranharia (falar mal de ex-empresa,
+  resposta evasiva, mentira aparente) — lista vazia quando não houver.
+- "improvedAnswer" em INGLÊS: a resposta reescrita como o candidato ideal
+  responderia, com 60-150 palavras, no tom falado natural de entrevista.
+
+REGRA DOS NÚMEROS na improvedAnswer (inegociável): use SOMENTE fatos que
+estejam na resposta do candidato ou no trecho de perfil fornecido. Se um
+número/métrica fortaleceria a resposta mas NÃO está evidenciado, escreva um
+placeholder no formato estrito [[rótulo do dado||versão qualitativa]] —
+ex.: "reduced churn by [[% de redução de churn||a significant margin]]".
+Máximo 2 placeholders; nunca invente fatos.
+
+Responda SEMPRE chamando a tool "submit_interview_feedback".`;
+
+export function buildInterviewFeedbackUserPrompt(
+  question: string,
+  answer: string,
+  targetRole: string,
+  marketLabel: string,
+  profileExcerpt: string,
+): string {
+  return `Cargo-alvo: ${targetRole} · Mercado: ${marketLabel}
+
+Pergunta do entrevistador:
+"${question}"
+
+Resposta do candidato (em inglês):
+"""
+${answer}
+"""
+${profileExcerpt ? `\nTrecho do perfil/CV real do candidato (única fonte extra de fatos):\n"""\n${profileExcerpt}\n"""\n` : ""}
+Avalie e chame "submit_interview_feedback".`;
+}
+
+export const INTERVIEW_FEEDBACK_TOOL: Anthropic.Tool = {
+  name: "submit_interview_feedback",
+  description: "Envia a avaliação de uma resposta de entrevista.",
+  input_schema: {
+    type: "object",
+    properties: {
+      clarity: { type: "integer", minimum: 0, maximum: 100 },
+      evidence: { type: "integer", minimum: 0, maximum: 100 },
+      english: { type: "integer", minimum: 0, maximum: 100 },
+      feedback: { type: "string", description: "PT, 2-4 frases específicas." },
+      englishFixes: {
+        type: "array",
+        items: { type: "string" },
+        description: "Correções pontuais (PT citando o trecho EN). Vazia se limpo.",
+      },
+      redFlags: {
+        type: "array",
+        items: { type: "string" },
+        description: "O que um entrevistador estranharia. Vazia se nada.",
+      },
+      improvedAnswer: {
+        type: "string",
+        description:
+          "EN, 60-150 palavras. Métrica não evidenciada vira [[rótulo||versão qualitativa]] — nunca número inventado.",
+      },
+    },
+    required: [
+      "clarity",
+      "evidence",
+      "english",
+      "feedback",
+      "englishFixes",
+      "redFlags",
+      "improvedAnswer",
+    ],
+  },
+};

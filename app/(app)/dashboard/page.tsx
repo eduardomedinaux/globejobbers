@@ -71,13 +71,21 @@ export default async function DashboardPage({
 
   // Headline não tem mais card próprio: virou aba do LinkedIn Review, e o
   // limite dela aparece dentro da própria aba.
-  const [marketIntelUsage, cvTailorUsage, linkedinReviewUsage, networkingUsage, postUsage] = user
+  const [
+    marketIntelUsage,
+    cvTailorUsage,
+    linkedinReviewUsage,
+    networkingUsage,
+    postUsage,
+    interviewPrepUsage,
+  ] = user
     ? await Promise.all([
         getUsageStatus(user.id, "market_intel", plan),
         getUsageStatus(user.id, "cv_tailor", plan),
         getUsageStatus(user.id, "linkedin_review", plan),
         getUsageStatus(user.id, "networking", plan),
         getUsageStatus(user.id, "post", plan),
+        getUsageStatus(user.id, "interview_prep", plan),
       ])
     : [
         { used: 0, limit: FREE_LIMITS.market_intel, remaining: FREE_LIMITS.market_intel, limitReached: false },
@@ -90,6 +98,12 @@ export default async function DashboardPage({
         },
         { used: 0, limit: FREE_LIMITS.networking, remaining: FREE_LIMITS.networking, limitReached: false },
         { used: 0, limit: FREE_LIMITS.post, remaining: FREE_LIMITS.post, limitReached: false },
+        {
+          used: 0,
+          limit: FREE_LIMITS.interview_prep,
+          remaining: FREE_LIMITS.interview_prep,
+          limitReached: false,
+        },
       ];
 
   const TOOLS: {
@@ -122,6 +136,14 @@ export default async function DashboardPage({
       description: "Adapte seu currículo para cada vaga usando palavras-chave da job description.",
       href: "/tools/cv-tailor",
       remainingLabel: remainingLabel(cvTailorUsage.remaining, cvTailorUsage.limit),
+    },
+    {
+      icon: "mic",
+      name: "Interview Prep",
+      description:
+        "Treine com as perguntas que o seu mercado faz de verdade: responda em inglês, receba feedback em português.",
+      href: "/tools/interview-prep",
+      remainingLabel: remainingLabel(interviewPrepUsage.remaining, interviewPrepUsage.limit),
     },
     {
       icon: "users",

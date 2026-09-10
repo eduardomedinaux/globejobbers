@@ -17,6 +17,7 @@ export const FREE_LIMITS: Record<ToolType, number> = {
   linkedin_review: 1,
   networking: 1,
   post: 1,
+  interview_prep: 1,
 };
 
 /**
@@ -33,6 +34,9 @@ export const PRO_LIMITS: Record<ToolType, number> = {
   linkedin_review: 10,
   networking: 30,
   post: 30,
+  // Cada sessão são ~7 chamadas de Sonnet (perguntas + até 6 feedbacks) —
+  // teto protege o custo de API, como no market_intel.
+  interview_prep: 10,
 };
 
 export const PLAN_LIMITS: Record<Plan, Record<ToolType, number>> = {

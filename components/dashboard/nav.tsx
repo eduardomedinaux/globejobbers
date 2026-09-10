@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
+  Mic,
   Radar,
   ScanSearch,
   History,
@@ -59,7 +60,15 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     label: "Candidatura",
-    items: [{ href: "/tools/cv-tailor", label: "CV Tailor", mobileLabel: "CV", icon: FileText }],
+    items: [
+      { href: "/tools/cv-tailor", label: "CV Tailor", mobileLabel: "CV", icon: FileText },
+      {
+        href: "/tools/interview-prep",
+        label: "Interview Prep",
+        mobileLabel: "Entrevista",
+        icon: Mic,
+      },
+    ],
   },
   {
     label: null,

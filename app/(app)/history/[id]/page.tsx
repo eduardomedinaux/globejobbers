@@ -9,6 +9,7 @@ import { CvTailorResultView } from "@/components/cv-tailor-result";
 import { CvTailorResultV2View } from "@/components/cv-tailor-result-v2";
 import { LinkedinReviewResultView } from "@/components/linkedin-review-result";
 import { HeadlineMarketResultView } from "@/components/market-profile/headline-market-result";
+import { InterviewPrepResultView } from "@/components/tools/interview-prep-result";
 import { NetworkingResultView } from "@/components/tools/networking-result";
 import { PostResultView } from "@/components/tools/post-result";
 import { MarketIntelReportView } from "@/components/tools/market-intel-report";
@@ -17,6 +18,7 @@ import type {
   CvTailorResult,
   CvTailorResultV2,
   HeadlineAnalysisResult,
+  InterviewPrepResult,
   LinkedinReviewResult,
   MarketHeadlineResult,
   MarketIntelReport,
@@ -101,6 +103,10 @@ export default async function HistoryDetailPage({ params }: { params: { id: stri
 
       {analysis.tool_type === "post" && (
         <PostResultView result={analysis.output_data as PostResult} />
+      )}
+
+      {analysis.tool_type === "interview_prep" && (
+        <InterviewPrepResultView result={analysis.output_data as InterviewPrepResult} />
       )}
     </div>
   );

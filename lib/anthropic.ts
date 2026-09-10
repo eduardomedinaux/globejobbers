@@ -33,6 +33,12 @@ import {
   CURRENT_ROLE_SYSTEM_PROMPT,
   CURRENT_ROLE_TOOL,
   buildCurrentRoleUserPrompt,
+  INTERVIEW_QUESTIONS_SYSTEM_PROMPT,
+  INTERVIEW_QUESTIONS_TOOL,
+  INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
+  INTERVIEW_FEEDBACK_TOOL,
+  buildInterviewQuestionsUserPrompt,
+  buildInterviewFeedbackUserPrompt,
   MARKET_PROFILE_SYSTEM_PROMPT,
   MARKET_PROFILE_TOOL,
   NETWORKING_SYSTEM_PROMPT,
@@ -56,6 +62,9 @@ import {
   type LinkedinReviewResult,
   type MarketHeadlineResult,
   type MarketHeadlineVariant,
+  type InterviewAnswerFeedback,
+  type InterviewQuestion,
+  type InterviewQuestionCategory,
   type MarketIntelJobExtraction,
   type MarketIntelSeniority,
   type MarketKeyword,
@@ -972,4 +981,120 @@ export async function writeMarketIntelInsights(
     throw new Error("A IA não retornou o texto de insights.");
   }
   return insights.trim().slice(0, 4000);
+}
+
+// --- Interview Prep (leva 2 — ver claude/PROPOSTA-INTERVIEW-PREP.md) ---
+
+const INTERVIEW_CATEGORIES: InterviewQuestionCategory[] = [
+  "intro",
+  "behavioral",
+  "role_specific",
+  "reverse",
+];
+
+function toCleanStringArray(value: unknown, maxItems: number, maxLen: number): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        .map((s) => s.trim().slice(0, maxLen))
+        .slice(0, maxItems)
+    : [];
+}
+
+/**
+ * Perguntas da sessão de treino — ancoradas no Perfil de Mercado (vagas
+ * reais) quando existir. Prosa premium → Sonnet.
+ */
+export async function generateInterviewQuestions(
+  targetRole: string,
+  seniority: string,
+  marketLabel: string,
+  keywordsBlock: string,
+): Promise<InterviewQuestion[]> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 2000,
+    system: INTERVIEW_QUESTIONS_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildInterviewQuestionsUserPrompt(targetRole, seniority, marketLabel, keywordsBlock),
+      },
+    ],
+    tools: [INTERVIEW_QUESTIONS_TOOL],
+    tool_choice: { type: "tool", name: INTERVIEW_QUESTIONS_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+  const input = toolUse.input as { questions?: unknown };
+  const raw = Array.isArray(input.questions) ? input.questions : [];
+  const questions = raw
+    .filter((q): q is Record<string, unknown> => typeof q === "object" && q !== null)
+    .map((q) => ({
+      category: INTERVIEW_CATEGORIES.includes(q.category as InterviewQuestionCategory)
+        ? (q.category as InterviewQuestionCategory)
+        : ("behavioral" as const),
+      question: typeof q.question === "string" ? q.question.trim().slice(0, 500) : "",
+      why: typeof q.why === "string" ? q.why.trim().slice(0, 600) : "",
+    }))
+    .filter((q) => q.question.length > 0);
+
+  if (questions.length < 4) {
+    throw new Error("A IA não gerou perguntas suficientes.");
+  }
+  return questions.slice(0, 6);
+}
+
+/** Avalia UMA resposta (EN) — feedback em PT, versão melhorada com a regra dos números. */
+export async function evaluateInterviewAnswer(
+  question: string,
+  answer: string,
+  targetRole: string,
+  marketLabel: string,
+  profileExcerpt: string,
+): Promise<Omit<InterviewAnswerFeedback, "question" | "answer">> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 1800,
+    system: INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildInterviewFeedbackUserPrompt(
+          question,
+          answer,
+          targetRole,
+          marketLabel,
+          profileExcerpt,
+        ),
+      },
+    ],
+    tools: [INTERVIEW_FEEDBACK_TOOL],
+    tool_choice: { type: "tool", name: INTERVIEW_FEEDBACK_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+  const input = toolUse.input as Record<string, unknown>;
+  const feedback = typeof input.feedback === "string" ? input.feedback.trim().slice(0, 2000) : "";
+  const improvedAnswer =
+    typeof input.improvedAnswer === "string" ? input.improvedAnswer.trim().slice(0, 3000) : "";
+  if (!feedback || !improvedAnswer) {
+    throw new Error("A IA retornou uma avaliação incompleta.");
+  }
+
+  return {
+    clarity: clampScore(input.clarity),
+    evidence: clampScore(input.evidence),
+    english: clampScore(input.english),
+    feedback,
+    englishFixes: toCleanStringArray(input.englishFixes, 6, 400),
+    redFlags: toCleanStringArray(input.redFlags, 4, 300),
+    improvedAnswer,
+  };
 }
