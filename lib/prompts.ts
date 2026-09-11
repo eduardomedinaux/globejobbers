@@ -1352,6 +1352,13 @@ provável NESTE mercado, citando o termo concreto do alvo que a motiva
 Se o prompt trouxer keywords do Perfil de Mercado, ancore as perguntas
 nelas — não em generalidades da profissão.
 
+MODO VAGA ESPECÍFICA: se o prompt trouxer a DESCRIÇÃO DA VAGA da
+entrevista, ela é a âncora PRINCIPAL — gere as perguntas que O
+ENTREVISTADOR DESSA VAGA faria, a partir dos requisitos, responsabilidades
+e contexto dela (o Perfil de Mercado vira contexto secundário). Nesse modo,
+"why" cita o trecho concreto DA VAGA que motiva a pergunta (ex.: "a vaga
+pede 'experience with design systems at scale'").
+
 Responda SEMPRE chamando a tool "submit_interview_questions".`;
 
 export function buildInterviewQuestionsUserPrompt(
@@ -1359,11 +1366,12 @@ export function buildInterviewQuestionsUserPrompt(
   seniority: string,
   marketLabel: string,
   keywordsBlock: string,
+  jobText: string,
 ): string {
   return `Cargo-alvo: ${targetRole}
 Senioridade: ${seniority || "não informada"}
 Mercado: ${marketLabel}
-${keywordsBlock ? `\nKeywords do alvo (termo (recorrência entre as vagas reais)):\n${keywordsBlock}\n` : ""}
+${jobText ? `\nDESCRIÇÃO DA VAGA da entrevista (âncora principal das perguntas):\n"""\n${jobText}\n"""\n` : ""}${keywordsBlock ? `\nKeywords do alvo (termo (recorrência entre as vagas reais)):\n${keywordsBlock}\n` : ""}
 Gere as 6 perguntas e chame "submit_interview_questions".`;
 }
 
@@ -1436,6 +1444,7 @@ export function buildInterviewFeedbackUserPrompt(
   targetRole: string,
   marketLabel: string,
   profileExcerpt: string,
+  jobText: string,
 ): string {
   return `Cargo-alvo: ${targetRole} · Mercado: ${marketLabel}
 
@@ -1446,7 +1455,7 @@ Resposta do candidato (em inglês):
 """
 ${answer}
 """
-${profileExcerpt ? `\nTrecho do perfil/CV real do candidato (única fonte extra de fatos):\n"""\n${profileExcerpt}\n"""\n` : ""}
+${jobText ? `\nVAGA da entrevista (contexto pra calibrar a resposta ideal — NUNCA fonte de fatos sobre o candidato):\n"""\n${jobText}\n"""\n` : ""}${profileExcerpt ? `\nTrecho do perfil/CV real do candidato (única fonte extra de fatos sobre ELE):\n"""\n${profileExcerpt}\n"""\n` : ""}
 Avalie e chame "submit_interview_feedback".`;
 }
 

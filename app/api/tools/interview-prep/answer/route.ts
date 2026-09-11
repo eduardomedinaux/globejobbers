@@ -8,6 +8,9 @@ const MIN_ANSWER_LENGTH = 40;
 const MAX_ANSWER_LENGTH = 4000;
 // Trecho do perfil/CV que ancora a improvedAnswer (regra dos números).
 const MAX_PROFILE_EXCERPT = 6000;
+// Vaga específica (opcional) — mesmos limites do start.
+const MIN_JOB_TEXT_CHARS = 200;
+const MAX_JOB_TEXT_CHARS = 12000;
 
 /**
  * Interview Prep — etapa 2 (answer): avalia UMA resposta. O feedback usa o
@@ -40,12 +43,15 @@ export async function POST(request: NextRequest) {
   let answer = "";
   let targetRole = "";
   let marketLabel = "";
+  let jobText = "";
   try {
     const body = await request.json();
     question = typeof body.question === "string" ? body.question.trim().slice(0, 500) : "";
     answer = typeof body.answer === "string" ? body.answer.trim().slice(0, MAX_ANSWER_LENGTH) : "";
     targetRole = typeof body.targetRole === "string" ? body.targetRole.trim().slice(0, 80) : "";
     marketLabel = typeof body.marketLabel === "string" ? body.marketLabel.trim().slice(0, 80) : "";
+    const rawJob = typeof body.jobText === "string" ? body.jobText.trim() : "";
+    jobText = rawJob.length >= MIN_JOB_TEXT_CHARS ? rawJob.slice(0, MAX_JOB_TEXT_CHARS) : "";
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -71,7 +77,14 @@ export async function POST(request: NextRequest) {
 
   let feedback;
   try {
-    feedback = await evaluateInterviewAnswer(question, answer, targetRole, marketLabel, profileExcerpt);
+    feedback = await evaluateInterviewAnswer(
+      question,
+      answer,
+      targetRole,
+      marketLabel,
+      profileExcerpt,
+      jobText,
+    );
   } catch (error) {
     console.error("[/api/tools/interview-prep/answer]", error);
     return NextResponse.json(

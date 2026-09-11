@@ -20,6 +20,18 @@ import {
 
 type Step = "intro" | "starting" | "training" | "finishing" | "done" | "limit_reached";
 
+// Espelha o servidor: vaga com menos que isso não ancora pergunta nenhuma.
+const MIN_JOB_TEXT_CHARS = 200;
+
+/** Título da vaga = primeira linha não-vazia (mesmo truque do Perfil de Mercado). */
+function deriveJobTitle(text: string): string {
+  const firstLine = text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  return (firstLine ?? "").slice(0, 80);
+}
+
 async function safeJson(res: Response): Promise<Record<string, unknown>> {
   try {
     return await res.json();
@@ -45,6 +57,14 @@ export default function InterviewPrepPage() {
   const [targetRole, setTargetRole] = useState("");
   const [marketLabel, setMarketLabel] = useState("");
 
+  // Vaga específica (opcional): quando presente, as perguntas são ancoradas
+  // NELA (o Perfil de Mercado vira contexto secundário). Mínimo espelha o
+  // servidor — abaixo disso o texto é ignorado lá.
+  const [jobUrl, setJobUrl] = useState("");
+  const [jobText, setJobText] = useState("");
+  const [importingJob, setImportingJob] = useState(false);
+  const [jobImportError, setJobImportError] = useState<string | null>(null);
+
   const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
   const [current, setCurrent] = useState(0);
   const [answerDraft, setAnswerDraft] = useState("");
@@ -55,6 +75,37 @@ export default function InterviewPrepPage() {
 
   const [finished, setFinished] = useState<InterviewPrepResult | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
+
+  const jobActive = jobText.trim().length >= MIN_JOB_TEXT_CHARS;
+  const jobTitle = jobActive ? deriveJobTitle(jobText) : "";
+
+  async function handleImportJob() {
+    const url = jobUrl.trim();
+    if (!url) return;
+    setImportingJob(true);
+    setJobImportError(null);
+    try {
+      const res = await fetch("/api/job-fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : "Não conseguimos ler essa página. Cole o texto da vaga.",
+        );
+      }
+      setJobText(data.text as string);
+      track("interview_prep_job_imported");
+    } catch (err) {
+      setJobImportError(err instanceof Error ? err.message : "Erro inesperado.");
+    } finally {
+      setImportingJob(false);
+    }
+  }
 
   useEffect(() => {
     track("interview_prep_viewed");
@@ -73,7 +124,7 @@ export default function InterviewPrepPage() {
       const res = await fetch("/api/tools/interview-prep/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: typedRole }),
+        body: JSON.stringify({ role: typedRole, jobText: jobActive ? jobText : "" }),
       });
       const data = await safeJson(res);
       if (res.status === 403 && data.code === "PLAN_REQUIRED") {
@@ -120,6 +171,7 @@ export default function InterviewPrepPage() {
           answer: answerDraft,
           targetRole,
           marketLabel,
+          jobText: jobActive ? jobText : "",
         }),
       });
       const data = await safeJson(res);
@@ -172,7 +224,13 @@ export default function InterviewPrepPage() {
       const res = await fetch("/api/tools/interview-prep/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetRole, marketLabel, questions, answers }),
+        body: JSON.stringify({
+          targetRole,
+          marketLabel,
+          jobTitle: jobActive ? jobTitle : null,
+          questions,
+          answers,
+        }),
       });
       const data = await safeJson(res);
       if (!res.ok) {
@@ -184,6 +242,7 @@ export default function InterviewPrepPage() {
         kind: "interview_prep",
         targetRole,
         targetMarketLabel: marketLabel,
+        jobTitle: jobActive ? jobTitle : null,
         questions,
         answers,
       });
@@ -253,6 +312,74 @@ export default function InterviewPrepPage() {
             </div>
           )}
 
+          <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
+            <p className="text-[14.5px] font-semibold text-[#1B1B1E]">
+              Tem entrevista marcada?{" "}
+              <span className="font-normal text-[#8A8A85]">(opcional)</span>
+            </p>
+            <p className="mt-1 text-[13px] leading-[1.55] text-[#6E6E72]">
+              Cole a vaga e as perguntas saem sob medida <strong className="font-semibold">pra
+              essa entrevista</strong> — não só pro cargo em geral.
+            </p>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={jobUrl}
+                onChange={(e) => setJobUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleImportJob();
+                  }
+                }}
+                placeholder="Link da vaga (Greenhouse, Lever, site da empresa…)"
+                inputMode="url"
+                disabled={importingJob}
+                className="min-w-0 flex-1 rounded-lg border border-[#E2E2DC] px-3 py-2 text-[13.5px] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleImportJob}
+                disabled={importingJob || jobUrl.trim().length === 0}
+                className="shrink-0 border-[#D8E5E2] text-[#0F4D4A] hover:bg-[#F4F8F7]"
+              >
+                {importingJob ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Importando…
+                  </span>
+                ) : (
+                  "Importar"
+                )}
+              </Button>
+            </div>
+            {jobImportError && (
+              <p className="mt-2 text-[13px] leading-[1.5] text-[#A0522D]">{jobImportError}</p>
+            )}
+
+            <textarea
+              value={jobText}
+              onChange={(e) => setJobText(e.target.value)}
+              placeholder="…ou cole aqui a descrição da vaga (título, responsabilidades, requisitos)"
+              rows={5}
+              disabled={importingJob}
+              className="mt-2 w-full resize-y rounded-lg border border-[#E2E2DC] px-3 py-2 text-[13.5px] leading-[1.55] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
+            />
+            {jobText.trim().length > 0 &&
+              (jobActive ? (
+                <p className="mt-1.5 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#0F4D4A]">
+                  <Check className="h-3.5 w-3.5" aria-hidden />
+                  Vaga carregada — o treino vai mirar em &ldquo;{jobTitle}&rdquo;
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[12.5px] text-[#A0A09B]">
+                  Cole a descrição completa (mínimo ~{MIN_JOB_TEXT_CHARS} caracteres) — texto
+                  curto demais não dá âncora pras perguntas.
+                </p>
+              ))}
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button
@@ -261,7 +388,7 @@ export default function InterviewPrepPage() {
             className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
           >
             <Mic className="mr-2 h-4 w-4" />
-            Começar o treino
+            {jobActive ? "Começar o treino pra essa vaga" : "Começar o treino"}
           </Button>
         </>
       )}
@@ -285,6 +412,11 @@ export default function InterviewPrepPage() {
               {INTERVIEW_QUESTION_CATEGORY_LABELS[question.category]}
             </span>
           </div>
+          {jobActive && (
+            <p className="-mt-2 truncate text-[12.5px] text-[#0F4D4A]">
+              <span className="font-semibold">Treinando pra:</span> {jobTitle}
+            </p>
+          )}
 
           <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
             <p className="text-[17px] font-semibold leading-[1.45] text-[#1B1B1E]">

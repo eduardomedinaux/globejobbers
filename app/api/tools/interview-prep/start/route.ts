@@ -9,6 +9,11 @@ import { TARGET_MARKET_LABELS, type MarketProfile } from "@/lib/types";
 // caminho premium é o perfil — as perguntas saem ancoradas em vagas reais.
 const FALLBACK_MARKET_LABEL = "Mercado internacional (remoto)";
 
+// Vaga específica (opcional): abaixo do mínimo não é uma vaga de verdade;
+// o teto protege o custo do prompt (a descrição entra em TODAS as chamadas).
+const MIN_JOB_TEXT_CHARS = 200;
+const MAX_JOB_TEXT_CHARS = 12000;
+
 function keywordsBlock(profile: MarketProfile): string {
   const groups = [
     ["Hard skills", profile.keywords.hardSkills],
@@ -53,9 +58,14 @@ export async function POST(request: NextRequest) {
   }
 
   let typedRole = "";
+  let jobText = "";
   try {
     const body = await request.json();
     typedRole = typeof body.role === "string" ? body.role.trim().slice(0, 80) : "";
+    // Vaga específica (opcional): âncora principal das perguntas quando
+    // presente. Texto muito curto não dá âncora — tratamos como ausente.
+    const rawJob = typeof body.jobText === "string" ? body.jobText.trim() : "";
+    jobText = rawJob.length >= MIN_JOB_TEXT_CHARS ? rawJob.slice(0, MAX_JOB_TEXT_CHARS) : "";
   } catch {
     // Body vazio é válido — o cargo pode vir do Perfil de Mercado.
   }
@@ -77,6 +87,7 @@ export async function POST(request: NextRequest) {
       profile?.seniority ?? "",
       marketLabel,
       profile ? keywordsBlock(profile) : "",
+      jobText,
     );
   } catch (error) {
     console.error("[/api/tools/interview-prep/start]", error);
@@ -91,6 +102,7 @@ export async function POST(request: NextRequest) {
     targetRole,
     marketLabel,
     fromProfile: Boolean(profile),
+    jobProvided: jobText.length > 0,
     usage,
   });
 }

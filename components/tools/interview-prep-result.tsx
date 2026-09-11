@@ -139,6 +139,11 @@ export function InterviewPrepResultView({ result }: { result: InterviewPrepResul
         <p className="text-[14.5px] font-semibold text-[#0F4D4A]">
           Treino de entrevista — {result.targetRole}
         </p>
+        {result.jobTitle && (
+          <p className="mt-0.5 text-[13px] font-medium text-[#0F4D4A]">
+            Vaga: {result.jobTitle}
+          </p>
+        )}
         <p className="mt-0.5 text-[13px] text-[#3F3F43]">
           {result.targetMarketLabel} · {result.answers.length} resposta
           {result.answers.length === 1 ? "" : "s"} treinada

@@ -66,6 +66,9 @@ export async function POST(request: NextRequest) {
 
   const targetRole = str(body.targetRole, 80);
   const targetMarketLabel = str(body.marketLabel, 80);
+  // Vaga específica (opcional): guardamos só o título derivado no client —
+  // suficiente pro histórico ("Treino pra {vaga}") sem inchar o banco.
+  const jobTitle = str(body.jobTitle, 120) || null;
 
   const questions: InterviewQuestion[] = (Array.isArray(body.questions) ? body.questions : [])
     .filter((q): q is Record<string, unknown> => typeof q === "object" && q !== null)
@@ -106,6 +109,7 @@ export async function POST(request: NextRequest) {
     kind: "interview_prep",
     targetRole,
     targetMarketLabel,
+    jobTitle,
     questions,
     answers,
   };
@@ -122,7 +126,7 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       tool_type: "interview_prep",
       input_summary: targetRole,
-      input_data: { targetRole, targetMarketLabel, answered: answers.length },
+      input_data: { targetRole, targetMarketLabel, jobTitle, answered: answers.length },
       output_data: result,
       score,
     })

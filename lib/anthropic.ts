@@ -1010,6 +1010,7 @@ export async function generateInterviewQuestions(
   seniority: string,
   marketLabel: string,
   keywordsBlock: string,
+  jobText: string,
 ): Promise<InterviewQuestion[]> {
   const response = await anthropic.messages.create({
     model: ANALYSIS_MODEL,
@@ -1018,7 +1019,13 @@ export async function generateInterviewQuestions(
     messages: [
       {
         role: "user",
-        content: buildInterviewQuestionsUserPrompt(targetRole, seniority, marketLabel, keywordsBlock),
+        content: buildInterviewQuestionsUserPrompt(
+          targetRole,
+          seniority,
+          marketLabel,
+          keywordsBlock,
+          jobText,
+        ),
       },
     ],
     tools: [INTERVIEW_QUESTIONS_TOOL],
@@ -1055,6 +1062,7 @@ export async function evaluateInterviewAnswer(
   targetRole: string,
   marketLabel: string,
   profileExcerpt: string,
+  jobText: string,
 ): Promise<Omit<InterviewAnswerFeedback, "question" | "answer">> {
   const response = await anthropic.messages.create({
     model: ANALYSIS_MODEL,
@@ -1069,6 +1077,7 @@ export async function evaluateInterviewAnswer(
           targetRole,
           marketLabel,
           profileExcerpt,
+          jobText,
         ),
       },
     ],

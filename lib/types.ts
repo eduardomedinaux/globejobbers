@@ -119,6 +119,8 @@ export interface InterviewPrepResult {
   kind: "interview_prep";
   targetRole: string;
   targetMarketLabel: string;
+  /** Título da vaga quando o treino foi ancorado numa vaga específica. */
+  jobTitle?: string | null;
   questions: InterviewQuestion[];
   answers: InterviewAnswerFeedback[];
 }
