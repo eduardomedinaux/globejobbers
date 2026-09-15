@@ -2,8 +2,15 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-// Bônus da mentoria Carreira em Dólar: 30 dias de Pro (decisão de 05/ago).
-const GRANT_DAYS = 30;
+// Bônus de Pro por produto Hotmart (decisão de 05/ago, revisada 15/set):
+// mentoria "Carreira em Dólar" = 30 dias; Workshop = 7 dias (alinhado à
+// janela de replay, pra não canibalizar o GlobeJobbers avulso de R$65/mês).
+// Produto fora do mapa cai no default de 30 dias.
+const GRANT_DAYS_DEFAULT = 30;
+const GRANT_DAYS_BY_PRODUCT: Record<string, number> = {
+  "8303818": 30, // Carreira em Dólar (mentoria)
+  "8521774": 7, // Workshop Carreira em Dólar + GlobeJobbers.com
+};
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -15,8 +22,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * mecanismo que a Hotmart oferece.
  *
  * Eventos tratados:
- * - PURCHASE_APPROVED → insere grant de 30 dias em pro_grants (email do
- *   comprador, source='hotmart', external_ref=transação). O resgate em si
+ * - PURCHASE_APPROVED → insere grant em pro_grants (email do comprador,
+ *   source='hotmart', external_ref=transação, dias conforme
+ *   GRANT_DAYS_BY_PRODUCT). O resgate em si
  *   acontece no próximo login com aquele e-mail (app/auth/callback) — mesma
  *   fila dos grants de beta. IDEMPOTENTE por external_ref: a Hotmart
  *   reentrega até 5x e reprocessar não duplica o bônus.
@@ -73,6 +81,7 @@ export async function POST(request: NextRequest) {
   const type = typeof event.event === "string" ? event.event : "";
   const email = (event.data?.buyer?.email ?? "").trim();
   const transaction = (event.data?.purchase?.transaction ?? "").trim();
+  const productId = String(event.data?.product?.id ?? "").trim();
   const admin = getSupabaseAdmin();
 
   if (type === "PURCHASE_APPROVED") {
@@ -94,9 +103,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
+    const grantDays = GRANT_DAYS_BY_PRODUCT[productId] ?? GRANT_DAYS_DEFAULT;
     const { error } = await admin.from("pro_grants").insert({
       email,
-      days: GRANT_DAYS,
+      days: grantDays,
       source: "hotmart",
       external_ref: transaction,
     });
@@ -105,7 +115,7 @@ export async function POST(request: NextRequest) {
       // 500 → a Hotmart reentrega (retry automático).
       return NextResponse.json({ error: "db error" }, { status: 500 });
     }
-    console.log("HOTMART_GRANT_CREATED", { email, transaction, days: GRANT_DAYS });
+    console.log("HOTMART_GRANT_CREATED", { email, transaction, productId, days: grantDays });
     return NextResponse.json({ received: true });
   }
 
@@ -150,7 +160,7 @@ export async function POST(request: NextRequest) {
         .eq("id", grant.claimed_by)
         .maybeSingle();
       if (profile?.plan_expires_at) {
-        const days = Number(grant.days) || GRANT_DAYS;
+        const days = Number(grant.days) || GRANT_DAYS_DEFAULT;
         const newExpiry = new Date(
           new Date(profile.plan_expires_at as string).getTime() - days * DAY_MS,
         ).toISOString();
