@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { ScoreMiniCard } from "@/components/score-mini-card";
 import { CopyButton, PlaceholderTextBox } from "@/components/data-placeholder-text";
-import { LINKEDIN_REVIEW_CATEGORY_META, type LinkedinReviewResult } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { track } from "@/lib/analytics";
+import {
+  LINKEDIN_REVIEW_CATEGORY_META,
+  type ExperienceRewrite,
+  type LinkedinReviewResult,
+} from "@/lib/types";
 
 // Progressive disclosure (10/set): a única coisa ACIONÁVEL de cada
 // categoria é o exemplo pronto — aberto, com Copiar e instrução de uso.
@@ -12,7 +18,150 @@ import { LINKEDIN_REVIEW_CATEGORY_META, type LinkedinReviewResult } from "@/lib/
 // de dados [[...]] do exemplo vivem no componente compartilhado
 // components/data-placeholder-text.tsx (também usado pelo Interview Prep).
 
-export function LinkedinReviewResultView({ result }: { result: LinkedinReviewResult }) {
+// Teto de reescritas por análise — espelha MAX_REWRITES_PER_ANALYSIS na
+// rota /api/tools/linkedin-review/rewrite-experience.
+const MAX_REWRITES = 5;
+
+/** Uma experiência reescrita (salva na análise): a caixa de ação + o "por quê". */
+function ExperienceRewriteView({ item, index }: { item: ExperienceRewrite; index: number }) {
+  return (
+    <div>
+      <PlaceholderTextBox
+        text={item.rewritten}
+        title={`Experiência reescrita ${index + 1}`}
+        hintWithFields="Complete com seus números reais (a gente nunca inventa por você) — depois copie e cole nessa experiência no LinkedIn."
+        hintNoFields="Pronto pra usar: copie e cole nessa experiência no seu LinkedIn."
+        copyLabel={`Copiar experiência reescrita ${index + 1}`}
+      />
+      {item.changes.length > 0 && (
+        <details className="mt-1.5">
+          <summary className="cursor-pointer text-[12.5px] font-medium text-[#8A8A85] hover:text-[#0F4D4A]">
+            O que mudou
+          </summary>
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {item.changes.map((change) => (
+              <li key={change} className="text-[13px] leading-[1.55] text-[#6E6E72]">
+                • {change}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Reescrita sob demanda (17/set, ideia do Eduardo): o Review mostra UM
+ * exemplo; aqui o usuário cola as OUTRAS experiências, uma a uma, e recebe
+ * a reescrita de cada — anexada à análise (aparece no Histórico depois),
+ * sem consumir uso, até o teto. Sem analysisId (insert da análise falhou),
+ * o campo não aparece — as reescritas salvas ainda renderizam.
+ */
+function ExperienceRewriteSection({
+  analysisId,
+  initialRewrites,
+}: {
+  analysisId?: string | null;
+  initialRewrites: ExperienceRewrite[];
+}) {
+  const [rewrites, setRewrites] = useState<ExperienceRewrite[]>(initialRewrites);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canAddMore = Boolean(analysisId) && rewrites.length < MAX_REWRITES;
+
+  async function handleRewrite() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tools/linkedin-review/rewrite-experience", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisId, experienceText: draft }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "Não foi possível reescrever agora.",
+        );
+      }
+      setRewrites((prev) => [...prev, data.rewrite as ExperienceRewrite]);
+      setDraft("");
+      track("linkedin_review_experience_rewritten", { total: rewrites.length + 1 });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!canAddMore && rewrites.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      {rewrites.map((item, i) => (
+        <ExperienceRewriteView key={`${i}-${item.rewritten.slice(0, 40)}`} item={item} index={i} />
+      ))}
+
+      {canAddMore ? (
+        <div className="rounded-[10px] border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-4 py-3">
+          <p className="text-[13px] font-semibold text-[#1B1B1E]">
+            Quer melhorar outra experiência?
+          </p>
+          <p className="mt-0.5 text-[12.5px] leading-[1.5] text-[#8A8A85]">
+            Cole o texto dela (cargo, empresa e descrição, direto do seu LinkedIn) — a reescrita
+            usa só os fatos que você colar e fica salva nesta análise.
+          </p>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ex.: Product Designer · Empresa X · 2021–2023 — Responsável por…"
+            rows={4}
+            disabled={loading}
+            className="mt-2 w-full resize-y rounded-lg border border-[#E2E2DC] bg-white px-3 py-2 text-[13.5px] leading-[1.55] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
+          />
+          {error && <p className="mt-1.5 text-[13px] text-destructive">{error}</p>}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <Button
+              onClick={handleRewrite}
+              disabled={loading || draft.trim().length < 60}
+              className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
+            >
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Reescrevendo…
+                </span>
+              ) : (
+                "Reescrever essa experiência"
+              )}
+            </Button>
+            <span className="text-[12px] text-[#A0A09B]">
+              {MAX_REWRITES - rewrites.length} restante{MAX_REWRITES - rewrites.length === 1 ? "" : "s"} nesta análise
+            </span>
+          </div>
+        </div>
+      ) : (
+        rewrites.length >= MAX_REWRITES && (
+          <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
+            Você usou as {MAX_REWRITES} reescritas desta análise. Rode um novo Review quando
+            atualizar o perfil pra ganhar mais.
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
+export function LinkedinReviewResultView({
+  result,
+  analysisId,
+}: {
+  result: LinkedinReviewResult;
+  analysisId?: string | null;
+}) {
   const byKey = Object.fromEntries(result.categories.map((c) => [c.key, c]));
   // Chaves das categorias com a análise expandida (o padrão é recolhida).
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -79,6 +228,15 @@ export function LinkedinReviewResultView({ result }: { result: LinkedinReviewRes
                     {category.recommendation}
                   </p>
                 </div>
+              )}
+
+              {/* Experiências: o exemplo acima é UMA amostra — aqui o usuário
+                  cola as outras e reescreve uma a uma (salvo na análise). */}
+              {key === "experience" && (
+                <ExperienceRewriteSection
+                  analysisId={analysisId}
+                  initialRewrites={result.experienceRewrites ?? []}
+                />
               )}
 
               {/* O "porquê" — recolhido por padrão. */}

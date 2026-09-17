@@ -41,7 +41,12 @@ métricas, valores ou fatos que não estejam evidenciados no perfil enviado.
 - about: a seção "Sobre" conta uma narrativa de carreira clara, ou é
   genérica/ausente?
 - experience: as experiências mostram IMPACTO com números/resultados, ou
-  são listas de responsabilidades?
+  são listas de responsabilidades? No "example" desta categoria, reescreva a
+  experiência MAIS FRACA em impacto (a que mais ganha com a melhoria — não a
+  mais famosa), e comece a "recommendation" nomeando qual experiência o
+  exemplo reescreveu (ex.: "O exemplo acima reescreve sua experiência na
+  Empresa X.") seguida da instrução de replicar o mesmo padrão (verbo forte +
+  escopo + resultado) nas demais experiências.
 - keywords: o perfil usa termos e ferramentas que recrutadores
   internacionais buscam na área do candidato?
 - internationalPositioning: olhando o perfil como um todo, ele se posiciona
@@ -159,6 +164,96 @@ export const LINKEDIN_REVIEW_TOOL: Anthropic.Tool = {
     ],
   },
 };
+
+// --- Reescrita de experiência sob demanda (dentro do LinkedIn Review) ---
+//
+// O Review mostra UM exemplo reescrito na categoria Experiências; o usuário
+// pode colar outras experiências, uma a uma, e receber a reescrita de cada
+// (até um teto por análise — ver a rota rewrite-experience). O texto colado
+// é a ÚNICA fonte de fatos; o Perfil de Mercado entra só como alvo.
+
+export const EXPERIENCE_REWRITE_SYSTEM_PROMPT = `Você é um recrutador técnico sênior especializado em colocar profissionais
+brasileiros em vagas remotas internacionais pagas em dólar.
+
+O usuário vai colar o texto de UMA experiência profissional do LinkedIn dele
+(cargo, empresa, descrição). Reescreva essa experiência EM INGLÊS, no padrão
+que recrutadores internacionais esperam: 3-5 bullets curtos começando com
+verbo de ação forte, cada um comunicando escopo + ação + resultado. Mantenha
+a primeira linha com cargo e empresa como estiverem no texto colado.
+
+REGRA DOS NÚMEROS (inegociável): você é PROIBIDO de inventar métricas,
+valores ou fatos que não estejam no texto colado.
+- Se o dado ESTÁ no texto, use o dado real.
+- Se um bullet pede uma métrica que NÃO está no texto, escreva no lugar um
+  placeholder no formato estrito [[rótulo do dado||versão qualitativa]] —
+  rótulo curto dizendo qual número o usuário deve preencher, e uma versão
+  qualitativa honesta da mesma afirmação pra quem não tem o número.
+- Use no MÁXIMO 3 placeholders no total; o restante é texto pronto pra usar.
+- NUNCA adicione responsabilidade, projeto, tecnologia ou conquista que não
+  esteja no texto colado — reescrever é reformular, não inventar.
+
+Se o prompt trouxer o PERFIL DE MERCADO do usuário (cargo-alvo e keywords
+das vagas que ele quer), priorize na reescrita os termos desse alvo QUE O
+TEXTO COLADO EVIDENCIA — nunca acrescente skills do alvo que o texto não
+sustenta.
+
+Em "changes", explique em português (2-4 itens curtos) o que mudou e por quê
+(ex.: "Bullets agora abrem com verbo de ação — recrutador escaneia em
+segundos"). Se o texto colado não parecer uma experiência profissional
+(ex.: uma headline, um parágrafo do About), reescreva mesmo assim da melhor
+forma e diga isso no primeiro item de "changes".
+
+Responda SEMPRE chamando a ferramenta "submit_experience_rewrite". Não
+escreva texto fora da chamada da ferramenta.`;
+
+export const EXPERIENCE_REWRITE_TOOL: Anthropic.Tool = {
+  name: "submit_experience_rewrite",
+  description: "Envia a experiência reescrita para recrutadores internacionais.",
+  input_schema: {
+    type: "object",
+    properties: {
+      rewritten: {
+        type: "string",
+        description:
+          "A experiência reescrita em inglês (cargo/empresa + 3-5 bullets). Métrica não evidenciada no texto vira placeholder [[rótulo||versão qualitativa]] — nunca número inventado.",
+      },
+      changes: {
+        type: "array",
+        items: { type: "string" },
+        description: "2-4 itens em português explicando o que mudou e por quê.",
+      },
+    },
+    required: ["rewritten", "changes"],
+  },
+};
+
+export function buildExperienceRewriteUserPrompt(
+  experienceText: string,
+  marketProfile?: MarketProfile | null,
+): string {
+  const marketBlock = marketProfile
+    ? `
+PERFIL DE MERCADO do usuário (alvo — priorize estes termos APENAS quando o texto colado os evidenciar):
+- Cargo-alvo: ${marketProfile.targetRole} · Senioridade: ${marketProfile.seniority}
+- Keywords: ${[
+        ...marketProfile.keywords.hardSkills,
+        ...marketProfile.keywords.tools,
+        ...marketProfile.keywords.responsibilities,
+      ]
+        .map((k) => k.term)
+        .slice(0, 20)
+        .join(", ") || "—"}
+`
+    : "";
+
+  return `Experiência colada pelo usuário (ÚNICA fonte de fatos):
+
+"""
+${experienceText}
+"""
+${marketBlock}
+Reescreva e chame "submit_experience_rewrite".`;
+}
 
 // Prompt e schema usados pela Route Handler /api/analyze (ver lib/anthropic.ts).
 //

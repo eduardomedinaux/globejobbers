@@ -75,7 +75,9 @@ create index if not exists analyses_user_id_created_at_idx
   on public.analyses (user_id, created_at desc);
 
 alter table public.analyses enable row level security;
-grant select, insert on public.analyses to service_role;
+-- update: reescritas de experiência sob demanda são ANEXADAS ao output_data
+-- da análise existente (rota rewrite-experience) — não criam linha nova.
+grant select, insert, update on public.analyses to service_role;
 
 -- `waitlist`: interesse no plano Pro/mentoria, disparado pelo UpgradeModal
 -- (ver app/api/waitlist/route.ts). `user_id` fica nulo quando o interesse

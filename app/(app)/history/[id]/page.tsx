@@ -94,7 +94,10 @@ export default async function HistoryDetailPage({ params }: { params: { id: stri
         })()}
 
       {analysis.tool_type === "linkedin_review" && (
-        <LinkedinReviewResultView result={analysis.output_data as LinkedinReviewResult} />
+        <LinkedinReviewResultView
+          result={analysis.output_data as LinkedinReviewResult}
+          analysisId={analysis.id}
+        />
       )}
 
       {analysis.tool_type === "networking" && (

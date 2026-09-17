@@ -119,18 +119,22 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = getSupabaseAdmin();
-  const { error: insertError } = await admin.from("analyses").insert({
-    user_id: user.id,
-    tool_type: "linkedin_review",
-    input_summary: profileText.slice(0, 200),
-    // marketProfileId registra CONTRA qual alvo esta análise foi feita —
-    // importante pra interpretar o resultado no histórico.
-    input_data: { profileText, marketProfileId: marketProfile?.id ?? null },
-    output_data: result,
-    score: result.overallScore,
-  });
+  const { data: inserted, error: insertError } = await admin
+    .from("analyses")
+    .insert({
+      user_id: user.id,
+      tool_type: "linkedin_review",
+      input_summary: profileText.slice(0, 200),
+      // marketProfileId registra CONTRA qual alvo esta análise foi feita —
+      // importante pra interpretar o resultado no histórico.
+      input_data: { profileText, marketProfileId: marketProfile?.id ?? null },
+      output_data: result,
+      score: result.overallScore,
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
+  if (insertError || !inserted) {
     console.error("ANALYSIS_INSERT_FAILED", {
       userId: user.id,
       toolType: "linkedin_review",
@@ -140,6 +144,9 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     analysis: result,
+    // Habilita a reescrita de experiências sob demanda na tela de resultado
+    // (null se o insert falhou — a UI só esconde o campo, sem punir).
+    analysisId: inserted?.id ?? null,
     marketProfile: marketProfile
       ? { targetRole: marketProfile.targetRole, targetMarket: marketProfile.targetMarket }
       : null,

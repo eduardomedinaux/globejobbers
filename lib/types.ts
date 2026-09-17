@@ -187,9 +187,22 @@ export interface LinkedinReviewCategory {
   example: string;
 }
 
+/** Reescrita sob demanda de UMA experiência colada pelo usuário (categoria
+ * Experiências do Review). Anexada à análise existente — não consome uso. */
+export interface ExperienceRewrite {
+  /** Texto original colado (fonte de fatos). */
+  source: string;
+  /** Experiência reescrita em inglês (pode conter placeholders [[...]]). */
+  rewritten: string;
+  /** O que mudou e por quê, em português (2-4 itens). */
+  changes: string[];
+}
+
 export interface LinkedinReviewResult {
   overallScore: number;
   categories: LinkedinReviewCategory[];
+  /** Opcional: análises antigas não têm o campo. */
+  experienceRewrites?: ExperienceRewrite[];
 }
 
 const LINKEDIN_REVIEW_CATEGORY_LABELS: Record<LinkedinReviewCategoryKey, string> = {

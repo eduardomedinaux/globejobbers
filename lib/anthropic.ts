@@ -21,6 +21,9 @@ import {
   HEADLINE_VISION_TOOL,
   LINKEDIN_REVIEW_SYSTEM_PROMPT,
   LINKEDIN_REVIEW_TOOL,
+  EXPERIENCE_REWRITE_SYSTEM_PROMPT,
+  EXPERIENCE_REWRITE_TOOL,
+  buildExperienceRewriteUserPrompt,
   MARKET_INTEL_EXPANSION_SYSTEM_PROMPT,
   MARKET_INTEL_EXPANSION_TOOL,
   MARKET_INTEL_EXTRACTION_SYSTEM_PROMPT,
@@ -60,6 +63,7 @@ import {
   type HeadlineBuilderAnswers,
   type LinkedinReviewCategory,
   type LinkedinReviewResult,
+  type ExperienceRewrite,
   type MarketHeadlineResult,
   type MarketHeadlineVariant,
   type InterviewAnswerFeedback,
@@ -323,6 +327,43 @@ export async function generateLinkedinReview(
   }
 
   return validateLinkedinReviewResult(toolUse.input);
+}
+
+/**
+ * Reescreve UMA experiência colada pelo usuário (sob demanda, dentro do
+ * LinkedIn Review). Fonte de fatos = o texto colado; Perfil de Mercado só
+ * como alvo. Regra dos números via placeholders [[...]] — igual ao Review.
+ */
+export async function rewriteExperience(
+  experienceText: string,
+  marketProfile?: MarketProfile | null,
+): Promise<Omit<ExperienceRewrite, "source">> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 1200,
+    temperature: 0,
+    system: EXPERIENCE_REWRITE_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildExperienceRewriteUserPrompt(experienceText, marketProfile) },
+    ],
+    tools: [EXPERIENCE_REWRITE_TOOL],
+    tool_choice: { type: "tool", name: EXPERIENCE_REWRITE_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  const input = toolUse.input as Record<string, unknown>;
+  const rewritten = typeof input.rewritten === "string" ? input.rewritten.trim().slice(0, 4000) : "";
+  if (!rewritten) {
+    throw new Error("A IA não retornou a experiência reescrita.");
+  }
+  return {
+    rewritten,
+    changes: toCleanStringArray(input.changes, 4, 300),
+  };
 }
 
 /** Headline Optimizer logado, modo "perguntas guiadas" (sem headline pronta). */

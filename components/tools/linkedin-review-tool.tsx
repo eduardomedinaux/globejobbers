@@ -23,6 +23,7 @@ export function LinkedinReviewTool() {
   const [step, setStep] = useState<Step>("input");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LinkedinReviewResult | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -93,6 +94,7 @@ export function LinkedinReviewTool() {
       }
 
       setResult(data.analysis as LinkedinReviewResult);
+      setAnalysisId((data.analysisId as string | null) ?? null);
       setRemaining(data.usage?.remaining ?? null);
       setStep("result");
       track("linkedin_review_completed", { score: data.analysis.overallScore });
@@ -106,6 +108,7 @@ export function LinkedinReviewTool() {
   function handleReset() {
     setStep("input");
     setResult(null);
+    setAnalysisId(null);
     setError(null);
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -226,7 +229,7 @@ export function LinkedinReviewTool() {
 
       {step === "result" && result && (
         <div className="flex flex-col gap-4">
-          <LinkedinReviewResultView result={result} />
+          <LinkedinReviewResultView result={result} analysisId={analysisId} />
           {remaining !== null && (
             <p className="text-center text-[13px] text-[#8A8A85]">
               {remaining} análise{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"} este mês
