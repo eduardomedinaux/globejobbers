@@ -7,6 +7,8 @@ import { getActiveDocument, saveUserDocument } from "@/lib/user-documents";
 import { getUsageStatus } from "@/lib/usage";
 import { extractTextFromPdf } from "@/lib/pdf";
 import { validateProfileText } from "@/lib/profile-validation";
+import { buildSkillsPlan } from "@/lib/skills-plan";
+import type { LinkedinReviewResult } from "@/lib/types";
 
 const MAX_PROFILE_LENGTH = 20_000;
 const MIN_PDF_TEXT_LENGTH = 100;
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
   // devolve null e a análise segue genérica).
   const marketProfile = await getActiveMarketProfile(user.id);
 
-  let result;
+  let result: LinkedinReviewResult;
   try {
     result = await generateLinkedinReview(profileText, marketProfile);
   } catch (error) {
@@ -117,6 +119,13 @@ export async function POST(request: NextRequest) {
       { status: 502 },
     );
   }
+
+  // Plano de skills (fixar no topo / garantir na lista / gaps): calculado em
+  // CÓDIGO, sem IA — só existe quando há Perfil de Mercado pra cruzar.
+  result = {
+    ...result,
+    skillsPlan: marketProfile ? buildSkillsPlan(profileText, marketProfile) : null,
+  };
 
   const admin = getSupabaseAdmin();
   const { data: inserted, error: insertError } = await admin

@@ -198,11 +198,32 @@ export interface ExperienceRewrite {
   changes: string[];
 }
 
+/** Um item do plano de skills: termo + recorrência nas vagas do alvo. */
+export interface SkillsPlanItem {
+  term: string;
+  count: number;
+}
+
+/** Plano de skills do LinkedIn — calculado em CÓDIGO (lib/skills-plan.ts)
+ * cruzando o Perfil de Mercado com o texto do perfil. Null quando a análise
+ * rodou sem Perfil de Mercado. */
+export interface SkillsPlan {
+  /** Evidenciadas no perfil, as mais pedidas nas vagas — fixar no topo. */
+  pinTop: SkillsPlanItem[];
+  /** Também evidenciadas — garantir que estão na lista de Skills. */
+  evidenced: SkillsPlanItem[];
+  /** Pedidas nas vagas SEM evidência no perfil — gap a desenvolver, nunca
+   * "adicione sem ter". */
+  gaps: SkillsPlanItem[];
+}
+
 export interface LinkedinReviewResult {
   overallScore: number;
   categories: LinkedinReviewCategory[];
   /** Opcional: análises antigas não têm o campo. */
   experienceRewrites?: ExperienceRewrite[];
+  /** Opcional: análises antigas não têm; null = sem Perfil de Mercado. */
+  skillsPlan?: SkillsPlan | null;
 }
 
 const LINKEDIN_REVIEW_CATEGORY_LABELS: Record<LinkedinReviewCategoryKey, string> = {

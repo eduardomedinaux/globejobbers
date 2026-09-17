@@ -10,6 +10,8 @@ import {
   LINKEDIN_REVIEW_CATEGORY_META,
   type ExperienceRewrite,
   type LinkedinReviewResult,
+  type SkillsPlan,
+  type SkillsPlanItem,
 } from "@/lib/types";
 
 // Progressive disclosure (10/set): a única coisa ACIONÁVEL de cada
@@ -185,6 +187,117 @@ function ExperienceRewriteSection({
   );
 }
 
+/** Chip de skill: termo + quantas das vagas do alvo pedem. */
+function SkillChip({ item, muted }: { item: SkillsPlanItem; muted?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-medium ${
+        muted ? "bg-[#F5EFEA] text-[#7A4A35]" : "bg-[#EAF1EF] text-[#0F4D4A]"
+      }`}
+    >
+      {item.term}
+      <span className={`text-[11px] font-semibold ${muted ? "text-[#B08968]" : "text-[#7BA39E]"}`}>
+        {item.count}×
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Plano de skills (17/set): calculado em código cruzando o Perfil de
+ * Mercado com o texto do perfil (lib/skills-plan.ts). Progressive
+ * disclosure: o ACIONÁVEL (fixar no topo) fica aberto com Copiar; o plano
+ * completo (garantir na lista + gaps reais) mora atrás do toggle. O "N×" de
+ * cada chip é a prova — recorrência nas vagas do próprio usuário.
+ */
+function SkillsPlanSection({ plan }: { plan: SkillsPlan }) {
+  const [open, setOpen] = useState(false);
+  const hasMore = plan.evidenced.length > 0 || plan.gaps.length > 0;
+
+  if (plan.pinTop.length === 0 && !hasMore) return null;
+
+  return (
+    <div className="mt-3">
+      {plan.pinTop.length > 0 && (
+        <div className="rounded-[10px] border border-[#E2EAE8] bg-[#F6F8F7] px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#0F4D4A]">
+                Fixe estas no topo das suas Skills
+              </p>
+              <p className="mt-0.5 text-[12px] leading-[1.5] text-[#8A8A85]">
+                Nesta ordem — são as mais pedidas nas vagas do <strong>seu</strong> alvo
+                (o número diz em quantas vagas o termo aparece).
+              </p>
+            </div>
+            <CopyButton
+              text={plan.pinTop.map((item) => item.term).join(", ")}
+              label="Copiar skills do topo"
+            />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {plan.pinTop.map((item) => (
+              <SkillChip key={item.term} item={item} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {hasMore && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            aria-expanded={open}
+            className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6E6E72] transition-colors hover:text-[#0F4D4A]"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+            {open ? "Esconder o plano de skills" : "Ver o plano completo de skills"}
+          </button>
+
+          {open && (
+            <div className="mt-2.5 flex flex-col gap-3">
+              {plan.evidenced.length > 0 && (
+                <div>
+                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#8A8A85]">
+                    Garanta que estão na sua lista de Skills
+                  </p>
+                  <p className="mt-0.5 text-[12px] leading-[1.5] text-[#A0A09B]">
+                    Seu perfil evidencia essas — se alguma não está na lista, adicione.
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {plan.evidenced.map((item) => (
+                      <SkillChip key={item.term} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {plan.gaps.length > 0 && (
+                <div className="rounded-[10px] border border-[#F0DCD4] bg-[#FBF6F3] px-4 py-3">
+                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#A0522D]">
+                    As vagas pedem — seu perfil ainda não mostra
+                  </p>
+                  <p className="mt-0.5 text-[12px] leading-[1.5] text-[#7A4A35]">
+                    NÃO adicione uma skill que você não tem — isso quebra na primeira
+                    entrevista. Se você TEM alguma dessas, faça ela aparecer nas suas
+                    experiências primeiro; se não tem, aqui está seu roteiro de estudo.
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {plan.gaps.map((item) => (
+                      <SkillChip key={item.term} item={item} muted />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function LinkedinReviewResultView({
   result,
   analysisId,
@@ -258,6 +371,13 @@ export function LinkedinReviewResultView({
                     {category.recommendation}
                   </p>
                 </div>
+              )}
+
+              {/* Palavras-chave: plano de skills determinístico (fixar no
+                  topo / garantir na lista / gaps) quando a análise rodou
+                  contra um Perfil de Mercado. */}
+              {key === "keywords" && result.skillsPlan && (
+                <SkillsPlanSection plan={result.skillsPlan} />
               )}
 
               {/* Experiências: o exemplo acima é UMA amostra — aqui o usuário
