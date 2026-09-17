@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, Plus } from "lucide-react";
 import { ScoreMiniCard } from "@/components/score-mini-card";
 import { CopyButton, PlaceholderTextBox } from "@/components/data-placeholder-text";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,9 @@ function ExperienceRewriteSection({
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Progressive disclosure (padrão da casa): o formulário só abre no clique
+  // do botão — e fecha de novo após cada reescrita concluída.
+  const [formOpen, setFormOpen] = useState(false);
 
   const canAddMore = Boolean(analysisId) && rewrites.length < MAX_REWRITES;
 
@@ -89,6 +92,7 @@ function ExperienceRewriteSection({
       }
       setRewrites((prev) => [...prev, data.rewrite as ExperienceRewrite]);
       setDraft("");
+      setFormOpen(false);
       track("linkedin_review_experience_rewritten", { total: rewrites.length + 1 });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
@@ -105,7 +109,24 @@ function ExperienceRewriteSection({
         <ExperienceRewriteView key={`${i}-${item.rewritten.slice(0, 40)}`} item={item} index={i} />
       ))}
 
-      {canAddMore ? (
+      {canAddMore && !formOpen && (
+        <button
+          type="button"
+          onClick={() => {
+            setFormOpen(true);
+            setError(null);
+          }}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#C9D6D3] bg-[#FAFAF8] px-4 py-3 text-[13.5px] font-medium text-[#0F4D4A] transition-colors hover:border-[#0F4D4A] hover:bg-[#F4F8F7]"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          Melhorar outra experiência
+          <span className="font-normal text-[#A0A09B]">
+            · {MAX_REWRITES - rewrites.length} restante{MAX_REWRITES - rewrites.length === 1 ? "" : "s"}
+          </span>
+        </button>
+      )}
+
+      {canAddMore && formOpen ? (
         <div className="rounded-[10px] border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-4 py-3">
           <p className="text-[13px] font-semibold text-[#1B1B1E]">
             Quer melhorar outra experiência?
@@ -119,6 +140,7 @@ function ExperienceRewriteSection({
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Ex.: Product Designer · Empresa X · 2021–2023 — Responsável por…"
             rows={4}
+            autoFocus
             disabled={loading}
             className="mt-2 w-full resize-y rounded-lg border border-[#E2E2DC] bg-white px-3 py-2 text-[13.5px] leading-[1.55] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
           />
@@ -138,9 +160,17 @@ function ExperienceRewriteSection({
                 "Reescrever essa experiência"
               )}
             </Button>
-            <span className="text-[12px] text-[#A0A09B]">
-              {MAX_REWRITES - rewrites.length} restante{MAX_REWRITES - rewrites.length === 1 ? "" : "s"} nesta análise
-            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setFormOpen(false);
+                setError(null);
+              }}
+              disabled={loading}
+              className="text-[13px] font-medium text-[#8A8A85] underline-offset-2 hover:text-[#3F3F43] hover:underline"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       ) : (
