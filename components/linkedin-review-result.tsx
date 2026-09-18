@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Loader2, Plus } from "lucide-react";
+import { Fragment, useState } from "react";
+import { Check, ChevronDown, Loader2, Plus } from "lucide-react";
 import { ScoreMiniCard } from "@/components/score-mini-card";
 import { CopyButton, PlaceholderTextBox } from "@/components/data-placeholder-text";
 import { Button } from "@/components/ui/button";
@@ -187,109 +187,147 @@ function ExperienceRewriteSection({
   );
 }
 
-/** Chip de skill: termo + quantas das vagas do alvo pedem. */
-function SkillChip({ item, muted }: { item: SkillsPlanItem; muted?: boolean }) {
+/**
+ * Chip de skill CLICÁVEL: o clique copia AQUELE termo — mapeado no gesto
+ * real do LinkedIn, que adiciona uma skill por vez num campo de texto.
+ */
+function CopySkillChip({ item, muted }: { item: SkillsPlanItem; muted?: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(item.term);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard bloqueado: sem feedback, sem quebrar.
+    }
+  }
+
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-medium ${
-        muted ? "bg-[#F5EFEA] text-[#7A4A35]" : "bg-[#EAF1EF] text-[#0F4D4A]"
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={`Copiar "${item.term}"`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-medium transition-colors ${
+        muted
+          ? "bg-[#F5EFEA] text-[#7A4A35] hover:bg-[#F0E4DB]"
+          : "bg-[#EAF1EF] text-[#0F4D4A] hover:bg-[#DCE9E6]"
       }`}
     >
-      {item.term}
-      <span className={`text-[11px] font-semibold ${muted ? "text-[#B08968]" : "text-[#7BA39E]"}`}>
-        {item.count}×
-      </span>
-    </span>
+      {copied ? (
+        <span className="inline-flex items-center gap-1">
+          <Check className="h-3.5 w-3.5" aria-hidden /> copiada
+        </span>
+      ) : (
+        <>
+          {item.term}
+          <span
+            className={`text-[11px] font-semibold ${muted ? "text-[#B08968]" : "text-[#7BA39E]"}`}
+          >
+            {item.count}×
+          </span>
+        </>
+      )}
+    </button>
   );
 }
 
 /**
- * Plano de skills (17/set): calculado em código cruzando o Perfil de
- * Mercado com o texto do perfil (lib/skills-plan.ts). Progressive
- * disclosure: o ACIONÁVEL (fixar no topo) fica aberto com Copiar; o plano
- * completo (garantir na lista + gaps reais) mora atrás do toggle. O "N×" de
- * cada chip é a prova — recorrência nas vagas do próprio usuário.
+ * Seção própria "Skills" (refeita 17/set após feedback do Eduardo): nada de
+ * conselho — só instrução mapeada na UI do LinkedIn, no formato "faça isso".
+ * Passo 1: adicionar na lista (chip clicado = copia UMA skill, o gesto real
+ * do campo ➕ do LinkedIn). Passo 2: a ordem do topo, numerada. Os gaps
+ * ficam recolhidos — são a única parte que não é tarefa imediata.
+ * Dados 100% determinísticos de lib/skills-plan.ts.
  */
-function SkillsPlanSection({ plan }: { plan: SkillsPlan }) {
-  const [open, setOpen] = useState(false);
-  const hasMore = plan.evidenced.length > 0 || plan.gaps.length > 0;
+function SkillsPlanCard({ plan }: { plan: SkillsPlan }) {
+  const [gapsOpen, setGapsOpen] = useState(false);
+  const listSkills = [...plan.pinTop, ...plan.evidenced];
 
-  if (plan.pinTop.length === 0 && !hasMore) return null;
+  if (listSkills.length === 0 && plan.gaps.length === 0) return null;
 
   return (
-    <div className="mt-3">
-      {plan.pinTop.length > 0 && (
-        <div className="rounded-[10px] border border-[#E2EAE8] bg-[#F6F8F7] px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#0F4D4A]">
-                Fixe estas no topo das suas Skills
-              </p>
-              <p className="mt-0.5 text-[12px] leading-[1.5] text-[#8A8A85]">
-                Nesta ordem — são as mais pedidas nas vagas do <strong>seu</strong> alvo
-                (o número diz em quantas vagas o termo aparece).
-              </p>
-            </div>
-            <CopyButton
-              text={plan.pinTop.map((item) => item.term).join(", ")}
-              label="Copiar skills do topo"
-            />
-          </div>
+    <div className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]">
+      <div className="flex items-center justify-between">
+        <p className="text-[15px] font-semibold text-[#1B1B1E]">Skills</p>
+        <span className="rounded-full bg-[#EAF1EF] px-2.5 py-1 text-[11.5px] font-semibold text-[#0F4D4A]">
+          mapeado das suas vagas
+        </span>
+      </div>
+      <p className="mt-1 text-[12.5px] leading-[1.5] text-[#8A8A85]">
+        O número em cada skill diz em quantas vagas do seu alvo ela aparece.
+      </p>
+
+      {listSkills.length > 0 && (
+        <div className="mt-4 rounded-[10px] border border-[#E2EAE8] bg-[#F6F8F7] px-4 py-3">
+          <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#0F4D4A]">
+            1 · Adicione estas à sua lista de competências
+          </p>
+          <p className="mt-0.5 text-[12.5px] leading-[1.55] text-[#3F3F43]">
+            No LinkedIn: <strong>Perfil → Competências → ➕ Adicionar competência</strong>.
+            Toque numa skill aqui pra copiar, cole lá, repita. As que já estão na sua
+            lista, deixe como estão.
+          </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {plan.pinTop.map((item) => (
-              <SkillChip key={item.term} item={item} />
+            {listSkills.map((item) => (
+              <CopySkillChip key={item.term} item={item} />
             ))}
           </div>
         </div>
       )}
 
-      {hasMore && (
+      {plan.pinTop.length > 0 && (
+        <div className="mt-3 rounded-[10px] border border-[#E2EAE8] bg-[#F6F8F7] px-4 py-3">
+          <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#0F4D4A]">
+            2 · Deixe o topo da lista NESTA ordem
+          </p>
+          <p className="mt-0.5 text-[12.5px] leading-[1.55] text-[#3F3F43]">
+            No LinkedIn: <strong>Competências → ✏️ (editar)</strong> — arraste até as
+            primeiras posições ficarem assim:
+          </p>
+          <ol className="mt-2 flex flex-col gap-1">
+            {plan.pinTop.map((item, i) => (
+              <li key={item.term} className="flex items-center gap-2 text-[13.5px] text-[#1B1B1E]">
+                <span className="w-5 shrink-0 text-right text-[12px] font-bold text-[#0F4D4A]">
+                  {i + 1}.
+                </span>
+                <span className="font-medium">{item.term}</span>
+                <span className="text-[11.5px] font-semibold text-[#7BA39E]">
+                  {item.count}× nas suas vagas
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {plan.gaps.length > 0 && (
         <>
           <button
             type="button"
-            onClick={() => setOpen((prev) => !prev)}
-            aria-expanded={open}
-            className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6E6E72] transition-colors hover:text-[#0F4D4A]"
+            onClick={() => setGapsOpen((prev) => !prev)}
+            aria-expanded={gapsOpen}
+            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6E6E72] transition-colors hover:text-[#0F4D4A]"
           >
-            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
-            {open ? "Esconder o plano de skills" : "Ver o plano completo de skills"}
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${gapsOpen ? "rotate-180" : ""}`}
+            />
+            {gapsOpen ? "Esconder" : "Skills que as vagas pedem e seu perfil ainda não mostra"}
           </button>
-
-          {open && (
-            <div className="mt-2.5 flex flex-col gap-3">
-              {plan.evidenced.length > 0 && (
-                <div>
-                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#8A8A85]">
-                    Garanta que estão na sua lista de Skills
-                  </p>
-                  <p className="mt-0.5 text-[12px] leading-[1.5] text-[#A0A09B]">
-                    Seu perfil evidencia essas — se alguma não está na lista, adicione.
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {plan.evidenced.map((item) => (
-                      <SkillChip key={item.term} item={item} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {plan.gaps.length > 0 && (
-                <div className="rounded-[10px] border border-[#F0DCD4] bg-[#FBF6F3] px-4 py-3">
-                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#A0522D]">
-                    As vagas pedem — seu perfil ainda não mostra
-                  </p>
-                  <p className="mt-0.5 text-[12px] leading-[1.5] text-[#7A4A35]">
-                    NÃO adicione uma skill que você não tem — isso quebra na primeira
-                    entrevista. Se você TEM alguma dessas, faça ela aparecer nas suas
-                    experiências primeiro; se não tem, aqui está seu roteiro de estudo.
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {plan.gaps.map((item) => (
-                      <SkillChip key={item.term} item={item} muted />
-                    ))}
-                  </div>
-                </div>
-              )}
+          {gapsOpen && (
+            <div className="mt-2.5 rounded-[10px] border border-[#F0DCD4] bg-[#FBF6F3] px-4 py-3">
+              <p className="text-[12.5px] leading-[1.55] text-[#7A4A35]">
+                <strong>Não adicione estas ao LinkedIn</strong> — skill sem lastro quebra
+                na primeira entrevista. Se você tem alguma delas, escreva ela numa
+                experiência (use a reescrita ali em cima) e rode o Review de novo. Se não
+                tem, é a sua lista de estudo, na ordem de prioridade:
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {plan.gaps.map((item) => (
+                  <CopySkillChip key={item.term} item={item} muted />
+                ))}
+              </div>
             </div>
           )}
         </>
@@ -325,8 +363,8 @@ export function LinkedinReviewResultView({
           const isExpanded = Boolean(expanded[key]);
 
           return (
+            <Fragment key={key}>
             <div
-              key={key}
               className="rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)]"
             >
               <div className="flex items-center justify-between">
@@ -371,13 +409,6 @@ export function LinkedinReviewResultView({
                     {category.recommendation}
                   </p>
                 </div>
-              )}
-
-              {/* Palavras-chave: plano de skills determinístico (fixar no
-                  topo / garantir na lista / gaps) quando a análise rodou
-                  contra um Perfil de Mercado. */}
-              {key === "keywords" && result.skillsPlan && (
-                <SkillsPlanSection plan={result.skillsPlan} />
               )}
 
               {/* Experiências: o exemplo acima é UMA amostra — aqui o usuário
@@ -425,6 +456,14 @@ export function LinkedinReviewResultView({
                 </div>
               )}
             </div>
+
+            {/* A seção Skills entra logo depois de Experiências — mesma
+                ordem do perfil real do LinkedIn. Só existe quando a análise
+                rodou contra um Perfil de Mercado. */}
+            {key === "experience" && result.skillsPlan && (
+              <SkillsPlanCard plan={result.skillsPlan} />
+            )}
+            </Fragment>
           );
         })}
       </div>
