@@ -285,18 +285,18 @@ export function OnboardingAssistant({ hasPdf, extractedRole, hasMarketIntel }: O
             {jobs !== null && jobs.length === 0 && (
               <p className="text-[13.5px] leading-[1.6] text-[#6E6E72]">
                 Não encontramos as vagas do seu relatório (ele pode ter expirado).
-                Sem problema: cole as vagas que você quer direto na{" "}
+                Sem problema: cole as vagas que você quer direto no{" "}
                 <Link
-                  href="/tools/linkedin-review?tab=headline"
+                  href="/tools/market-intel?tab=alvo"
                   className="font-medium text-[#0F4D4A] underline underline-offset-2"
                 >
-                  aba Headline
+                  Meu Alvo
                 </Link>
                 .
               </p>
             )}
             <Link
-              href="/tools/linkedin-review?tab=headline"
+              href="/tools/market-intel?tab=alvo"
               className="text-[12.5px] text-[#8A8A85] underline-offset-2 hover:text-[#3F3F43] hover:underline"
             >
               Prefiro colar vagas que eu mesmo encontrei

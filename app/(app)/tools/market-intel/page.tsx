@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { MarketIntelReportView } from "@/components/tools/market-intel-report";
+import { MyTargetTab } from "@/components/market-profile/target-tab";
 import { UpgradeModal } from "@/components/dashboard/upgrade-modal";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,20 @@ import {
 } from "@/lib/types";
 
 type Step = "input" | "running" | "result" | "limit_reached";
+
+type Tab = "mercado" | "alvo";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "mercado", label: "Mercado" },
+  { key: "alvo", label: "Meu Alvo" },
+];
+
+const TAB_SUBTITLES: Record<Tab, string> = {
+  mercado:
+    "Antes de otimizar LinkedIn ou CV, descubra o que o mercado realmente pede. A gente lê centenas de vagas reais publicadas no último mês e te entrega o mapa do mercado que você quer entrar.",
+  alvo:
+    "As vagas que você quer conquistar definem seu alvo — e o alvo alimenta o LinkedIn Review, as Skills e o Interview Prep.",
+};
 
 /**
  * Resposta que não é JSON (ex.: página de erro/timeout da Vercel em texto
@@ -35,6 +51,10 @@ async function safeJson(res: Response): Promise<Record<string, unknown>> {
  * pronto do start (segundo usuário do mesmo mercado não espera).
  */
 export default function MarketIntelPage() {
+  // Aba Meu Alvo (decisão 18/set): as vagas de interesse "ditam quase tudo",
+  // então o alvo mora aqui — a casa do mercado — e não mais na aba Headline
+  // do Review. Abas MONTADAS com hidden (lição do bug do Marco no aulão).
+  const [tab, setTab] = useState<Tab>("mercado");
   const [step, setStep] = useState<Step>("input");
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<MarketIntelReport | null>(null);
@@ -64,6 +84,7 @@ export default function MarketIntelPage() {
       setRegion(regionParam);
     }
     if (params.get("onboarding") === "1") setFromOnboarding(true);
+    if (params.get("tab") === "alvo") setTab("alvo");
     return () => {
       cancelled.current = true;
     };
@@ -183,14 +204,39 @@ export default function MarketIntelPage() {
         <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[#161618]">
           Market Intelligence
         </h1>
-        <p className="mt-1 text-[14.5px] leading-[1.6] text-[#6E6E72]">
-          Antes de otimizar LinkedIn ou CV, descubra o que o mercado{" "}
-          <strong className="font-semibold text-[#1B1B1E]">realmente</strong> pede. A gente lê
-          centenas de vagas reais publicadas no último mês e te entrega o mapa
-          do mercado que você quer entrar.
-        </p>
+        <p className="mt-1 text-[14.5px] leading-[1.6] text-[#6E6E72]">{TAB_SUBTITLES[tab]}</p>
       </div>
 
+      {/* Abas de seção (mesmo padrão underline do LinkedIn Review) */}
+      <div className="flex gap-6 border-b border-[#EAEAE4]" role="tablist">
+        {TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => {
+              if (key === tab) return;
+              setTab(key);
+              track("market_intel_tab_changed", { tab: key });
+            }}
+            className={cn(
+              "-mb-px border-b-2 pb-2.5 text-[14px] font-medium transition-colors",
+              tab === key
+                ? "border-[#0F4D4A] text-[#0F4D4A]"
+                : "border-transparent text-[#6E6E72] hover:text-[#1B1B1E]",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div hidden={tab !== "alvo"}>
+        <MyTargetTab />
+      </div>
+
+      <div hidden={tab !== "mercado"} className="flex flex-col gap-6">
       {fromOnboarding && step !== "result" && (
         <div className="rounded-xl bg-[#EAF1EF] px-4 py-3 text-[13px] leading-[1.55] text-[#0F4D4A]">
           <strong>Passo 2 do seu início:</strong> sugerimos o cargo a partir do
@@ -316,6 +362,7 @@ export default function MarketIntelPage() {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -37,7 +37,8 @@ export function LinkedinReviewTool() {
 
   useEffect(() => {
     track("linkedin_review_viewed");
-    // Perfil de Mercado ativo (criado na aba Headline): quando existe, o
+    // Perfil de Mercado ativo (definido no Market Intelligence › Meu Alvo):
+    // quando existe, o
     // review é avaliado CONTRA esse alvo — o banner comunica isso. Falha
     // aqui só silencia o banner; o servidor busca o perfil por conta própria.
     fetch("/api/market-profile")
@@ -143,14 +144,20 @@ export function LinkedinReviewTool() {
               <strong>
                 {activeTarget.targetRole} · {TARGET_MARKET_LABELS[activeTarget.targetMarket]}
               </strong>{" "}
-              (Perfil de Mercado criado a partir das suas vagas na aba Headline).
+              (o alvo definido a partir das suas vagas no Market Intelligence).
             </div>
           )}
           {activeTarget === null && (
             <div className="rounded-xl border border-dashed border-[#D8D8D2] bg-[#FAFAF8] px-4 py-3 text-[13px] leading-[1.55] text-[#6E6E72]">
-              Dica: crie seu <strong>Perfil de Mercado</strong> na aba Headline (cole as vagas que
-              você quer conquistar) e este review passa a ser avaliado contra o seu alvo — não no
-              genérico.
+              Dica: defina seu <strong>alvo</strong> no{" "}
+              <a
+                href="/tools/market-intel?tab=alvo"
+                className="font-medium text-[#0F4D4A] underline underline-offset-2"
+              >
+                Market Intelligence › Meu Alvo
+              </a>{" "}
+              (cole as vagas que você quer conquistar) e este review passa a ser avaliado contra
+              o seu alvo — não no genérico.
             </div>
           )}
 

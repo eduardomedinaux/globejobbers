@@ -84,6 +84,8 @@ export type AnalyticsEvent =
   | "onboarding_skipped"
   // Interview Prep (leva 2 — sessão de treino)
   | "linkedin_review_experience_rewritten"
+  | "my_target_viewed"
+  | "market_intel_tab_changed"
   | "interview_prep_viewed"
   | "interview_prep_job_imported"
   | "interview_prep_started"

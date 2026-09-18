@@ -119,6 +119,65 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ profile: rowToMarketProfile(row) });
 }
 
+const VALID_MARKETS = ["us_remote", "canada", "europe", "latam_remote", "other"];
+
+/**
+ * Confirma/edita o alvo (cargo, senioridade, mercado) de um perfil do
+ * próprio usuário. Antes essa persistência morava na geração de headline
+ * (/api/tools/headline mode market); com a aba Headline aposentada
+ * (decisão 18/set — o alvo mora no Market Intelligence › Meu Alvo), a
+ * confirmação vira endpoint próprio.
+ */
+export async function PATCH(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Sessão expirada. Faça login de novo." }, { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+  }
+
+  const profileId = typeof body.profileId === "string" ? body.profileId : "";
+  if (!profileId) {
+    return NextResponse.json({ error: "Perfil não informado." }, { status: 400 });
+  }
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (typeof body.targetRole === "string" && body.targetRole.trim()) {
+    patch.target_role = body.targetRole.trim().slice(0, 120);
+  }
+  if (typeof body.seniority === "string" && body.seniority.trim()) {
+    patch.seniority = body.seniority.trim().slice(0, 60);
+  }
+  if (typeof body.targetMarket === "string" && VALID_MARKETS.includes(body.targetMarket)) {
+    patch.target_market = body.targetMarket;
+  }
+
+  const admin = getSupabaseAdmin();
+  // .eq("user_id") junto do id: perfil de outro usuário é 404, não vaza.
+  const { data: row, error: updateError } = await admin
+    .from("market_profiles")
+    .update(patch)
+    .eq("id", profileId)
+    .eq("user_id", user.id)
+    .select()
+    .maybeSingle();
+
+  if (updateError || !row) {
+    console.error("MARKET_PROFILE_CONFIRM_FAILED", { profileId, updateError });
+    return NextResponse.json(
+      { error: "Não foi possível salvar seu alvo. Tente novamente." },
+      { status: updateError ? 500 : 404 },
+    );
+  }
+
+  return NextResponse.json({ profile: rowToMarketProfile(row) });
+}
+
 /** Devolve o perfil ativo (mais recente) do usuário — consumido pelo LinkedIn Review e futuras ferramentas. */
 export async function GET() {
   const user = await getCurrentUser();

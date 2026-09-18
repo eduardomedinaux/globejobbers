@@ -119,7 +119,7 @@ export function AssetCards({ marketProfile, document: initialDoc }: AssetCardsPr
               )}
 
               <Link
-                href="/tools/linkedin-review?tab=headline"
+                href="/tools/market-intel?tab=alvo"
                 className="flex items-center gap-1.5 text-[13px] font-medium text-[#0F4D4A] hover:underline"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -133,7 +133,7 @@ export function AssetCards({ marketProfile, document: initialDoc }: AssetCardsPr
                 esse mercado busca. Todas as ferramentas usam esse alvo.
               </p>
               <Link
-                href="/tools/linkedin-review?tab=headline"
+                href="/tools/market-intel?tab=alvo"
                 onClick={() => track("asset_mission_clicked", { asset: "market_profile" })}
                 className="inline-flex items-center gap-2 self-start rounded-xl bg-[#0F4D4A] px-4 py-2.5 text-[13.5px] font-semibold text-[#FBFEFD] transition-colors hover:bg-[#0B3F3C]"
               >

@@ -305,8 +305,8 @@ export default function InterviewPrepPage() {
                 className="rounded-lg border border-[#E2E2DC] px-3 py-2 text-[14px] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
               />
               <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
-                Dica: com o Perfil de Mercado criado (cole suas vagas na aba
-                Headline do LinkedIn Review), as perguntas saem ancoradas nas
+                Dica: com o seu alvo definido (cole suas vagas no Market
+                Intelligence › Meu Alvo), as perguntas saem ancoradas nas
                 SUAS vagas reais.
               </p>
             </div>
