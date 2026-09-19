@@ -236,7 +236,9 @@ export default function MarketIntelPage() {
         <MyTargetTab />
       </div>
 
-      <div hidden={tab !== "mercado"} className="flex flex-col gap-6">
+      {/* A classe de display precisa sumir junto com o painel — `flex`
+          sobrescreveria o atributo hidden (display:flex > display:none da UA). */}
+      <div className={cn("flex-col gap-6", tab === "mercado" ? "flex" : "hidden")}>
       {fromOnboarding && step !== "result" && (
         <div className="rounded-xl bg-[#EAF1EF] px-4 py-3 text-[13px] leading-[1.55] text-[#0F4D4A]">
           <strong>Passo 2 do seu início:</strong> sugerimos o cargo a partir do

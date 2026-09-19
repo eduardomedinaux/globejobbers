@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { extractMarketProfile } from "@/lib/anthropic";
 import { getActiveMarketProfile, rowToMarketProfile } from "@/lib/market-profile";
+import { getActiveDocument } from "@/lib/user-documents";
 import { getUsageStatus } from "@/lib/usage";
 
 // Vaga colada precisa parecer uma descrição real (mesmo princípio do PDF
@@ -56,8 +57,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const currentRole =
+  // Cargo atual: se o client não mandar (a UI não pergunta mais — decisão
+  // 19/set), usamos o extraído do PDF salvo. É só contexto da extração; a
+  // fonte de verdade continua sendo as vagas.
+  let currentRole =
     typeof body.currentRole === "string" ? body.currentRole.trim().slice(0, 120) : "";
+  if (!currentRole) {
+    const doc = await getActiveDocument(user.id, "linkedin_pdf");
+    currentRole = (doc?.extractedRole ?? "").slice(0, 120);
+  }
 
   const rawJobs = Array.isArray(body.jobs) ? body.jobs : [];
   const jobs = rawJobs

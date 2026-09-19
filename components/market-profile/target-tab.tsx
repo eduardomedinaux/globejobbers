@@ -36,7 +36,10 @@ const EMPTY_JOB: JobEntry = { text: "", url: "", importing: false, urlError: nul
 const STRENGTH_LABELS = ["", "Básica", "Razoável", "Boa", "Muito boa", "Máxima"] as const;
 
 type View = "loading" | "summary" | "wizard";
-type WizardStep = "current" | "jobs" | "extracting" | "confirm" | "limit_reached";
+// Sem passo de "cargo atual" (decisão 19/set): as vagas coladas já bastam,
+// e o cargo atual vem do PDF salvo (extracted_role) no servidor — zero
+// pergunta desnecessária.
+type WizardStep = "jobs" | "extracting" | "confirm" | "limit_reached";
 
 /** Top keywords (todas as categorias, por recorrência), deduplicadas. */
 function topKeywordsOf(profile: MarketProfile | null): MarketKeyword[] {
@@ -78,9 +81,8 @@ export function MyTargetTab() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
   // --- estado do wizard ---
-  const [step, setStep] = useState<WizardStep>("current");
+  const [step, setStep] = useState<WizardStep>("jobs");
   const [error, setError] = useState<string | null>(null);
-  const [currentRole, setCurrentRole] = useState("");
   const [jobs, setJobs] = useState<JobEntry[]>([{ ...EMPTY_JOB }]);
   const [draftProfile, setDraftProfile] = useState<MarketProfile | null>(null);
   const [identified, setIdentified] = useState<MarketProfileIdentified | null>(null);
@@ -146,7 +148,8 @@ export function MyTargetTab() {
       const res = await fetch("/api/market-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentRole: currentRole.trim(), jobs: filledJobs }),
+        // Sem currentRole: o servidor usa o cargo extraído do PDF salvo.
+        body: JSON.stringify({ jobs: filledJobs }),
       });
       const data = await res.json();
 
@@ -237,9 +240,8 @@ export function MyTargetTab() {
   }
 
   function resetWizard() {
-    setStep("current");
+    setStep("jobs");
     setError(null);
-    setCurrentRole("");
     setJobs([{ ...EMPTY_JOB }]);
     setDraftProfile(null);
     setIdentified(null);
@@ -459,8 +461,7 @@ export function MyTargetTab() {
 
   // ---------- WIZARD: definir/trocar o alvo ----------
   const stepIndicator =
-    step === "current" ? "Passo 1 de 2 — Seu cargo atual" :
-    step === "jobs" ? "Passo 2 de 2 — Vagas que você quer conquistar" :
+    step === "jobs" ? "Vagas que você quer conquistar" :
     step === "confirm" ? "Alvo identificado" : null;
 
   return (
@@ -469,42 +470,6 @@ export function MyTargetTab() {
         <p className="text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[#0F4D4A]">
           {stepIndicator}
         </p>
-      )}
-
-      {step === "current" && (
-        <>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="mt-currentRole">
-              Cargo/área atual <span className="font-normal text-[#8A8A85]">(opcional)</span>
-            </Label>
-            <Input
-              id="mt-currentRole"
-              value={currentRole}
-              onChange={(e) => setCurrentRole(e.target.value)}
-              placeholder="Ex.: Product Designer"
-            />
-            <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
-              Só contexto. Seu alvo vai nascer das <strong>vagas que você quer</strong> — é o
-              próximo passo.
-            </p>
-          </div>
-
-          <Button
-            onClick={() => setStep("jobs")}
-            className="bg-[#0F4D4A] text-[#FBFEFD] hover:bg-[#0B3F3C]"
-          >
-            Continuar
-          </Button>
-          {profile && (
-            <button
-              type="button"
-              onClick={() => setView("summary")}
-              className="mx-auto text-sm text-[#8A8A85] underline-offset-2 transition-colors hover:text-[#3F3F43] hover:underline"
-            >
-              Cancelar — manter meu alvo atual
-            </button>
-          )}
-        </>
       )}
 
       {step === "jobs" && (
@@ -625,13 +590,15 @@ export function MyTargetTab() {
             Analisar {filledJobs.length <= 1 ? "a vaga" : `as ${filledJobs.length} vagas`}
           </Button>
 
-          <button
-            type="button"
-            onClick={() => setStep("current")}
-            className="mx-auto text-sm text-[#8A8A85] underline-offset-2 transition-colors hover:text-[#3F3F43] hover:underline"
-          >
-            Voltar
-          </button>
+          {profile && (
+            <button
+              type="button"
+              onClick={() => setView("summary")}
+              className="mx-auto text-sm text-[#8A8A85] underline-offset-2 transition-colors hover:text-[#3F3F43] hover:underline"
+            >
+              Cancelar — manter meu alvo atual
+            </button>
+          )}
         </>
       )}
 
