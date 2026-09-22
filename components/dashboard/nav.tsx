@@ -13,6 +13,7 @@ import {
   PenSquare,
   type LucideIcon,
 } from "lucide-react";
+import { AccountMenu } from "@/components/dashboard/account-menu";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -82,13 +83,18 @@ function isActive(pathname: string, href: string) {
   return href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 }
 
-export function DashboardNav() {
+export function DashboardNav({ name, plan }: { name: string; plan: "free" | "pro" }) {
   const pathname = usePathname();
 
   return (
     <>
-      {/* Desktop: sidebar fixa à esquerda, ABAIXO do header (top-16 = h do AppHeader) */}
-      <aside className="fixed bottom-0 left-0 top-16 hidden w-[240px] flex-col border-r border-[#EAEAE4] bg-white px-5 py-6 md:flex">
+      {/* Desktop: sidebar full-height (design do Figma, 22/set) — o bloco do
+          usuário (logo + primeiro nome + plano + menu) mora no topo dela; a
+          barra do topo ficou só no mobile. */}
+      <aside className="fixed bottom-0 left-0 top-0 hidden w-[240px] flex-col border-r border-[#EAEAE4] bg-white px-5 py-5 md:flex">
+        <div className="mb-5">
+          <AccountMenu name={name} plan={plan} variant="sidebar" />
+        </div>
         <nav className="flex flex-col">
           {NAV_SECTIONS.map((section, sectionIndex) => (
             <div key={section.label ?? `section-${sectionIndex}`}>

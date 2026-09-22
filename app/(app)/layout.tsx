@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-background">
       <AppHeader name={name} plan={plan} />
-      <DashboardNav />
+      <DashboardNav name={name} plan={plan} />
       <div className="flex flex-col pb-16 md:pb-0 md:pl-[240px]">
         <main className="flex-1 px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>

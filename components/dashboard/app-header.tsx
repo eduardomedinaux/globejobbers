@@ -8,13 +8,13 @@ interface AppHeaderProps {
 }
 
 /**
- * Header full-width no topo da área logada (padrão Didomi/Stripe/Linear):
- * logo à esquerda; "Precisa de ajuda?" + "Minha conta" à direita.
- * A sidebar (DashboardNav) começa ABAIXO deste header — ver app/(app)/layout.tsx.
+ * Header do topo — SÓ MOBILE desde 22/set (design do Figma): no desktop a
+ * sidebar é full-height e o bloco do usuário mora no topo dela. No mobile a
+ * bottom nav não tem lugar pro menu de conta, então este header permanece.
  */
 export function AppHeader({ name, plan }: AppHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#EAEAE4] bg-white pl-5 pr-4 sm:pl-6 sm:pr-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#EAEAE4] bg-white pl-5 pr-4 sm:pl-6 sm:pr-6 md:hidden">
       <Link href="/dashboard" aria-label="Ir para o dashboard" className="shrink-0">
         <Wordmark />
       </Link>

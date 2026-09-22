@@ -1,14 +1,23 @@
-import Image from "next/image";
+import { Source_Serif_4 } from "next/font/google";
 
-export function Wordmark() {
+// Serifa no espírito do Claude Console (Copernicus): Source Serif 4 é a
+// aproximação aberta mais fiel — editorial, quente, premium.
+const serif = Source_Serif_4({ subsets: ["latin"], weight: "600", display: "swap" });
+
+/** Exposta pra outros usos da marca (ex.: nome do usuário na sidebar). */
+export const wordmarkSerif = serif;
+
+/**
+ * Wordmark tipográfica (19/set): "GlobeJobbers" em serifa, sem o logo do
+ * globo (aposentado junto com o SVG e a Kaushan Script). Um componente,
+ * todos os usos (app header, landing, login, previews) herdam.
+ */
+export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <Image
-      src="/globejobbers-logo.svg"
-      alt="GlobeJobbers"
-      width={237}
-      height={34}
-      priority
-      className="h-[34px] w-auto"
-    />
+    <span
+      className={`${serif.className} text-[22px] font-semibold leading-none tracking-[-0.01em] text-[#161618] ${className}`}
+    >
+      GlobeJobbers
+    </span>
   );
 }
