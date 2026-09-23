@@ -179,6 +179,54 @@ export default function Home() {
               <KeywordHighlights items={analysis.keywordHighlights} />
             </div>
 
+            {/* Ato 3 do storytelling (23/set): diagnóstico → primeira
+                melhoria (headline) → o plano completo. O chamado pro
+                GlobeJobbers fecha a narrativa da página. */}
+            <div className="mx-auto w-full max-w-[880px] px-4 sm:px-10">
+              <div className="overflow-hidden rounded-2xl bg-[#0F4D4A] p-7 text-white shadow-[0_18px_48px_rgba(15,77,74,0.28)] sm:p-9">
+                <p className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-[#9DC3BE]">
+                  O próximo passo
+                </p>
+                <h2 className="mt-2 text-balance text-[24px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[28px]">
+                  {revealed
+                    ? "Sua headline foi só a primeira mudança. O resto do plano já existe."
+                    : "Esse número é o seu diagnóstico. O plano pra mudá-lo já existe."}
+                </h2>
+                <p className="mt-2.5 max-w-[560px] text-[14.5px] leading-[1.6] text-[#CFE0DD]">
+                  O GlobeJobbers completo transforma o diagnóstico em instruções
+                  &ldquo;faça isso&rdquo; — mapeadas nas SUAS vagas, não em dicas genéricas:
+                </p>
+
+                <ol className="mt-5 flex flex-col gap-3">
+                  {[
+                    "Cole as vagas que você quer conquistar — elas viram o seu alvo",
+                    "Receba o mapa: LinkedIn em 8 categorias, skills na ordem certa e CV adaptado por vaga",
+                    "Treine a entrevista FALANDO em inglês, com feedback em português",
+                  ].map((item, i) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/12 text-[12.5px] font-bold text-white">
+                        {i + 1}
+                      </span>
+                      <span className="text-[14.5px] leading-[1.55] text-[#EAF1EF]">{item}</span>
+                    </li>
+                  ))}
+                </ol>
+
+                <div className="mt-7 flex flex-col items-start gap-2.5 sm:flex-row sm:items-center sm:gap-4">
+                  <a
+                    href="/login"
+                    onClick={() => track("preview_full_cta_clicked", { revealed })}
+                    className="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-[#0F4D4A] transition-colors hover:bg-[#EAF1EF]"
+                  >
+                    Começar grátis no GlobeJobbers
+                  </a>
+                  <p className="text-[12.5px] text-[#9DC3BE]">
+                    Entre com o Google · 1 uso grátis de cada ferramenta · sem cartão
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={handleReset}

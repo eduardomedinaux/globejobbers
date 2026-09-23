@@ -23,14 +23,14 @@ export function HeadlineCard({
 }: HeadlineCardProps) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-[#EAEAE4] bg-white p-6 shadow-[0_1px_2px_rgba(20,20,20,0.03)] sm:p-[26px_28px]">
-      <p className="mb-5 text-xs font-semibold uppercase tracking-[0.08em] text-[#A0A09B]">
+      <p className="mb-5 text-xs font-semibold uppercase tracking-[0.08em] text-[#3F3F43]">
         Headline reescrita
       </p>
 
-      <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#B6B6B1]">
+      <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#8A8A85]">
         Antes
       </p>
-      <div className="mt-1.5 rounded-[10px] border border-[#EEEEE8] bg-[#FAFAF8] px-[14px] py-3 text-[15px] leading-[1.45] text-[#9A9A95]">
+      <div className="mt-1.5 rounded-[10px] border border-[#E6E6E0] bg-[#FAFAF8] px-[14px] py-3 text-[15px] leading-[1.45] text-[#3F3F43]">
         {original}
       </div>
 
