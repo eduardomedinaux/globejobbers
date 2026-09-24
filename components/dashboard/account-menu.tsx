@@ -73,7 +73,13 @@ export function AccountMenu({ name, plan, variant = "pill" }: AccountMenuProps) 
             open && "bg-[#FAFAF8]",
           )}
         >
-          <Earth className="h-6 w-6 shrink-0 text-[#0F4D4A]" strokeWidth={1.75} />
+          {/* Tag Beta em cima do globinho (24/set) — some pós-beta. */}
+          <span className="relative shrink-0">
+            <Earth className="h-6 w-6 text-[#0F4D4A]" strokeWidth={1.75} />
+            <span className="absolute -right-2 -top-1.5 rounded-[3px] bg-[#0F4D4A] px-[3px] py-px text-[6.5px] font-bold uppercase tracking-[0.06em] text-white">
+              Beta
+            </span>
+          </span>
           <span
             className={`${wordmarkSerif.className} max-w-[104px] truncate text-[19px] font-semibold leading-none text-[#161618]`}
           >

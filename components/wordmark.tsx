@@ -14,10 +14,16 @@ export const wordmarkSerif = serif;
  */
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <span
-      className={`${serif.className} text-[22px] font-semibold leading-none tracking-[-0.01em] text-[#161618] ${className}`}
-    >
-      GlobeJobbers
+    <span className={`inline-flex items-start gap-1 ${className}`}>
+      <span
+        className={`${serif.className} text-[22px] font-semibold leading-none tracking-[-0.01em] text-[#161618]`}
+      >
+        GlobeJobbers
+      </span>
+      {/* Tag de fase (24/set): some quando o produto sair do beta. */}
+      <span className="mt-[1px] rounded-[4px] bg-[#EAF1EF] px-[4px] py-[1px] text-[8.5px] font-bold uppercase tracking-[0.08em] text-[#0F4D4A]">
+        Beta
+      </span>
     </span>
   );
 }
