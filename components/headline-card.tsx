@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 
 interface HeadlineCardProps {
   original: string;
@@ -44,16 +43,15 @@ export function HeadlineCard({
           </span>
         )}
       </div>
-      <div className="relative mt-1.5 overflow-hidden rounded-[10px] border border-[#E2EAE8] bg-[#F6F8F7] px-4 py-3.5">
-        <p
-          className={cn(
-            "text-base font-medium leading-[1.5] text-[#1B1B1E] transition-all duration-300",
-            !revealed && "select-none blur-sm",
-          )}
-        >
-          {rewritten}
-        </p>
-        {!revealed && children}
+      {/* Sem blur/fake por trás (24/set): antes do reveal, a caixa "Depois"
+          É o gate — o formulário ocupa o espaço, limpo. Com o reveal, vira
+          a headline. */}
+      <div className="mt-1.5 rounded-[10px] border border-[#E2EAE8] bg-[#F6F8F7] px-4 py-3.5">
+        {revealed ? (
+          <p className="text-base font-medium leading-[1.5] text-[#1B1B1E]">{rewritten}</p>
+        ) : (
+          children
+        )}
       </div>
 
       <p className="mt-[18px] text-[12.5px] leading-[1.5] text-[#8A8A85]">{FOOTNOTE}</p>

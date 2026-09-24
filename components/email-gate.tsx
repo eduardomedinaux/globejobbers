@@ -10,14 +10,17 @@ interface EmailGateProps {
   onSubmit: (email: string) => void;
   isSubmitting: boolean;
   error: string | null;
+  /** false no mobile: teclado abrindo sozinho esconderia o score. */
+  autoFocusInput?: boolean;
 }
 
 /**
- * Gate de e-mail — o ponto focal do resultado (23/set): borda/anel teal,
- * sombra mais forte e autoFocus no campo. A conversão da página acontece
- * aqui; tudo em volta é coadjuvante.
+ * Gate de e-mail (redesenho 24/set): sem overlay, sem blur por trás, sem
+ * sombra — ele É o conteúdo da caixa "Depois" até o reveal. O texto de
+ * apoio usa o mesmo estilo da headline reescrita (continuidade visual:
+ * este espaço vira a headline).
  */
-export function EmailGate({ onSubmit, isSubmitting, error }: EmailGateProps) {
+export function EmailGate({ onSubmit, isSubmitting, error, autoFocusInput = true }: EmailGateProps) {
   const [email, setEmail] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -27,43 +30,38 @@ export function EmailGate({ onSubmit, isSubmitting, error }: EmailGateProps) {
   }
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-3">
-      <form
-        onSubmit={handleSubmit}
-        className="flex w-full max-w-[280px] flex-col gap-2.5 rounded-xl border-2 border-[#0F4D4A]/35 bg-white p-4 shadow-[0_2px_4px_rgba(20,20,20,0.04),0_18px_44px_rgba(15,77,74,0.18)] ring-4 ring-[#0F4D4A]/10"
-      >
-        <div className="flex items-center gap-2 text-[13.5px] font-semibold text-[#1B1B1E]">
-          <Lock className="size-3.5 text-[#0F4D4A]" />
-          Veja sua headline reescrita
-        </div>
-        <p className="-mt-1 text-[12px] leading-[1.45] text-[#6E6E72]">
-          Deixe seu e-mail e a headline abre na hora — pronta pra colar no LinkedIn.
-        </p>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="email-gate" className="sr-only">
-            E-mail
-          </Label>
-          <Input
-            id="email-gate"
-            type="email"
-            required
-            autoFocus
-            placeholder="seu@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isSubmitting}
-            className="h-10 border-[#0F4D4A]/25 bg-white text-[14px] focus-visible:ring-[#0F4D4A]/30"
-          />
-        </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <Button
-          type="submit"
+    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3 py-1">
+      <div className="flex items-center gap-2 text-[15px] font-semibold text-[#1B1B1E]">
+        <Lock className="size-4 text-[#0F4D4A]" />
+        Veja sua headline reescrita
+      </div>
+      <p className="text-base font-medium leading-[1.5] text-[#1B1B1E]">
+        Deixe seu e-mail e a headline abre na hora — pronta pra colar no LinkedIn.
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="email-gate" className="sr-only">
+          E-mail
+        </Label>
+        <Input
+          id="email-gate"
+          type="email"
+          required
+          autoFocus={autoFocusInput}
+          placeholder="seu@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           disabled={isSubmitting}
-          className="h-10 bg-[#0F4D4A] text-[14px] font-semibold text-[#FBFEFD] hover:bg-[#0B3F3C]"
-        >
-          {isSubmitting ? "Revelando…" : "Revelar minha headline"}
-        </Button>
-      </form>
-    </div>
+          className="h-11 border-[#0F4D4A]/25 bg-white text-[15px] focus-visible:ring-[#0F4D4A]/30"
+        />
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <Button
+        type="submit"
+        disabled={isSubmitting}
+        className="h-11 bg-[#0F4D4A] text-[15px] font-semibold text-[#FBFEFD] hover:bg-[#0B3F3C]"
+      >
+        {isSubmitting ? "Revelando…" : "Revelar minha headline"}
+      </Button>
+    </form>
   );
 }

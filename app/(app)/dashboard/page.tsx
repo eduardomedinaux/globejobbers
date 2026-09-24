@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ViewTracker } from "@/components/analytics/view-tracker";
 import { AssetCards } from "@/components/dashboard/asset-cards";
+import { JourneyCard } from "@/components/dashboard/journey-card";
 import { OnboardingAssistant } from "@/components/dashboard/onboarding-assistant";
 import { ToolCard, type ToolIcon } from "@/components/dashboard/tool-card";
 import { getCurrentUser } from "@/lib/supabase-server";
@@ -12,6 +13,7 @@ import {
   setDocumentExtractedRole,
   toDocumentSummary,
 } from "@/lib/user-documents";
+import { getJourneyStatus } from "@/lib/journey";
 import { getPlanStatus } from "@/lib/plan";
 import { syncStripeForUser } from "@/lib/billing-sync";
 import { getUsageStatus, FREE_LIMITS } from "@/lib/usage";
@@ -209,8 +211,16 @@ export default async function DashboardPage({
     );
   }
 
+  // Jornada em 5 passos (estilo "getting started"): checks verificados no
+  // banco. Some sozinha quando os 5 estão completos.
+  const journeyStatus = user
+    ? await getJourneyStatus(user.id)
+    : { hasReview: false, latestReviewScore: null, hasCvTailor: false, hasInterviewPrep: false };
+
   return (
-    <div className="flex flex-col gap-8">
+    // Coluna central com largura máxima (referência: Claude Console) — o
+    // conteúdo respira nas laterais em vez de esticar a tela inteira.
+    <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-8">
       <ViewTracker event="dashboard_viewed" />
       <div>
         <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[#161618]">
@@ -221,6 +231,8 @@ export default async function DashboardPage({
           internacionais.
         </p>
       </div>
+
+      <JourneyCard hasTarget={Boolean(marketProfile)} status={journeyStatus} />
 
       {plan === "free" && (
         <Link

@@ -86,6 +86,7 @@ export type AnalyticsEvent =
   | "linkedin_review_experience_rewritten"
   | "my_target_viewed"
   | "preview_full_cta_clicked"
+  | "headline_print_pasted"
   | "market_intel_tab_changed"
   | "interview_prep_viewed"
   | "interview_prep_job_imported"
