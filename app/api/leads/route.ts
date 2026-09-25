@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
       email: normalizedEmail,
       raw_profile: rawProfile,
       score,
-      ...(source === "ato1" || source === "ato2" ? { source } : {}),
+      // "ato1" = /preview/headline · "ato2" = /preview/full-scan ·
+      // "cv" = /preview/cv-tailor (funil da demo de CV, 25/set).
+      ...(source === "ato1" || source === "ato2" || source === "cv" ? { source } : {}),
     });
     if (dbError) {
       // Prefixo único "LEAD_INSERT_FAILED" para filtrar nos logs da Vercel e

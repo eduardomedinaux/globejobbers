@@ -93,7 +93,14 @@ export type AnalyticsEvent =
   | "interview_prep_started"
   | "interview_prep_answer_evaluated"
   | "interview_prep_completed"
-  | "interview_prep_failed";
+  | "interview_prep_failed"
+  // Preview público do CV Tailor (/preview/cv-tailor — funil da demo)
+  | "preview_cv_viewed"
+  | "preview_cv_job_imported"
+  | "preview_cv_started"
+  | "preview_cv_diagnosed"
+  | "preview_cv_sample_revealed"
+  | "preview_cv_failed";
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);

@@ -12,6 +12,10 @@ interface EmailGateProps {
   error: string | null;
   /** false no mobile: teclado abrindo sozinho esconderia o score. */
   autoFocusInput?: boolean;
+  /** Textos opcionais por funil (default = headline). */
+  title?: string;
+  supporting?: string;
+  buttonLabel?: string;
 }
 
 /**
@@ -20,7 +24,15 @@ interface EmailGateProps {
  * apoio usa o mesmo estilo da headline reescrita (continuidade visual:
  * este espaço vira a headline).
  */
-export function EmailGate({ onSubmit, isSubmitting, error, autoFocusInput = true }: EmailGateProps) {
+export function EmailGate({
+  onSubmit,
+  isSubmitting,
+  error,
+  autoFocusInput = true,
+  title = "Veja sua headline reescrita",
+  supporting = "Deixe seu e-mail e a headline abre na hora — pronta pra colar no LinkedIn.",
+  buttonLabel = "Revelar minha headline",
+}: EmailGateProps) {
   const [email, setEmail] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -33,11 +45,9 @@ export function EmailGate({ onSubmit, isSubmitting, error, autoFocusInput = true
     <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3 py-1">
       <div className="flex items-center gap-2 text-[15px] font-semibold text-[#1B1B1E]">
         <Lock className="size-4 text-[#0F4D4A]" />
-        Veja sua headline reescrita
+        {title}
       </div>
-      <p className="text-base font-medium leading-[1.5] text-[#1B1B1E]">
-        Deixe seu e-mail e a headline abre na hora — pronta pra colar no LinkedIn.
-      </p>
+      <p className="text-base font-medium leading-[1.5] text-[#1B1B1E]">{supporting}</p>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email-gate" className="sr-only">
           E-mail
@@ -60,7 +70,7 @@ export function EmailGate({ onSubmit, isSubmitting, error, autoFocusInput = true
         disabled={isSubmitting}
         className="h-11 bg-[#0F4D4A] text-[15px] font-semibold text-[#FBFEFD] hover:bg-[#0B3F3C]"
       >
-        {isSubmitting ? "Revelando…" : "Revelar minha headline"}
+        {isSubmitting ? "Revelando…" : buttonLabel}
       </Button>
     </form>
   );

@@ -12,6 +12,9 @@ import {
   CV_REWRITE_TOOL,
   buildCvJobAnalysisUserPrompt,
   buildCvRewriteUserPrompt,
+  CV_PREVIEW_SAMPLE_SYSTEM_PROMPT,
+  CV_PREVIEW_SAMPLE_TOOL,
+  buildCvPreviewSampleUserPrompt,
   HEADLINE_BUILDER_SYSTEM_PROMPT,
   HEADLINE_TEXT_SYSTEM_PROMPT,
   HEADLINE_TEXT_TOOL,
@@ -58,6 +61,7 @@ import {
   type AnalysisResult,
   type CvChange,
   type CvJobProfile,
+  type CvPreviewSampleBullet,
   type CvRequirement,
   type HeadlineAnalysisResult,
   type HeadlineBuilderAnswers,
@@ -1147,4 +1151,94 @@ export async function evaluateInterviewAnswer(
     redFlags: toCleanStringArray(input.redFlags, 4, 300),
     improvedAnswer,
   };
+}
+
+// --- Preview público do CV Tailor: amostra da reescrita (pós-gate) ---
+
+export interface CvPreviewSampleOutput {
+  summary: string;
+  bullets: CvPreviewSampleBullet[];
+  evidencedTerms: string[];
+}
+
+function validateCvPreviewSample(
+  raw: unknown,
+  requirements: CvRequirement[],
+): CvPreviewSampleOutput {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("Resposta da IA não é um objeto.");
+  }
+  const obj = raw as Record<string, unknown>;
+
+  const summary = (typeof obj.summary === "string" ? obj.summary.trim() : "").slice(0, 700);
+  if (summary.length === 0) {
+    throw new Error("A IA não retornou o summary da amostra.");
+  }
+
+  // Bullets só passam com os três campos preenchidos e com o requirementTerm
+  // pertencendo de fato à lista de requisitos da vaga (nada fora do mapa).
+  const validTerms = new Set(requirements.map((r) => r.term.toLowerCase()));
+  const bullets: CvPreviewSampleBullet[] = (Array.isArray(obj.bullets) ? obj.bullets : [])
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      source: typeof item.source === "string" ? item.source.trim().slice(0, 500) : "",
+      rewritten: typeof item.rewritten === "string" ? item.rewritten.trim().slice(0, 600) : "",
+      requirementTerm:
+        typeof item.requirementTerm === "string" ? item.requirementTerm.trim().slice(0, 80) : "",
+    }))
+    .filter(
+      (b) =>
+        b.source.length > 0 &&
+        b.rewritten.length > 0 &&
+        validTerms.has(b.requirementTerm.toLowerCase()),
+    )
+    .slice(0, 3);
+
+  if (bullets.length === 0) {
+    throw new Error("A IA não retornou bullets válidos na amostra.");
+  }
+
+  // Mesma regra do CV Tailor completo: só termos realmente "weak" podem ser
+  // evidenciados — é o que impede a projeção de subir por outro caminho.
+  const weakTerms = new Set(
+    requirements.filter((r) => r.status === "weak").map((r) => r.term.toLowerCase()),
+  );
+  const evidencedTerms = (Array.isArray(obj.evidencedTerms) ? obj.evidencedTerms : [])
+    .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    .filter((t) => weakTerms.has(t.trim().toLowerCase()))
+    .slice(0, MAX_CV_REQUIREMENTS);
+
+  return { summary, bullets, evidencedTerms };
+}
+
+/**
+ * Amostra da adaptação pro funil público (/preview/cv-tailor): summary + 2-3
+ * bullets, mirando evidenciar os requisitos "weak". Roda no modelo de análise
+ * (sonnet) — é a etapa cara, por isso só é chamada DEPOIS do gate de e-mail.
+ * `violationTerms` = reforço da 2ª tentativa do check anti-invenção da rota.
+ */
+export async function generateCvPreviewSample(
+  cvText: string,
+  job: CvJobProfile,
+  requirements: CvRequirement[],
+  violationTerms?: string[],
+): Promise<CvPreviewSampleOutput> {
+  const response = await anthropic.messages.create({
+    model: ANALYSIS_MODEL,
+    max_tokens: 1500,
+    temperature: 0,
+    system: CV_PREVIEW_SAMPLE_SYSTEM_PROMPT,
+    messages: [
+      { role: "user", content: buildCvPreviewSampleUserPrompt(cvText, job, requirements, violationTerms) },
+    ],
+    tools: [CV_PREVIEW_SAMPLE_TOOL],
+    tool_choice: { type: "tool", name: CV_PREVIEW_SAMPLE_TOOL.name },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("A IA não retornou o resultado estruturado esperado.");
+  }
+
+  return validateCvPreviewSample(toolUse.input, requirements);
 }

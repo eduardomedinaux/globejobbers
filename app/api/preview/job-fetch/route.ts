@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/supabase-server";
 import { fetchJobDescription } from "@/lib/job-fetch";
 
 /**
- * Importa a descrição de uma vaga a partir da URL — versão LOGADA (Interview
- * Prep etc.). A lógica vive em lib/job-fetch.ts, compartilhada com a rota
- * pública do funil (/api/preview/job-fetch). Comportamento inalterado.
+ * Importa a descrição de uma vaga a partir da URL — versão PÚBLICA, usada
+ * pelo funil /preview/cv-tailor (a pessoa cola o link que compartilhou do
+ * app da vaga). Mesma lógica da rota logada (lib/job-fetch.ts): guarda
+ * anti-SSRF, timeout de 8s, resposta limitada ao texto extraído.
  */
 export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sessão expirada. Faça login de novo." }, { status: 401 });
-  }
-
   let rawUrl: unknown;
   try {
     const body = await request.json();

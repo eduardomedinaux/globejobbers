@@ -1600,3 +1600,129 @@ export const INTERVIEW_FEEDBACK_TOOL: Anthropic.Tool = {
     ],
   },
 };
+
+// --- Preview público do CV Tailor: amostra da reescrita (pós-gate) ---
+//
+// Roda SÓ depois do e-mail (sonnet — etapa cara do funil). Não reescreve o
+// CV inteiro: entrega o summary + até 3 bullets, escolhidos pra evidenciar
+// requisitos "weak" (o único ganho honesto). Mesmas regras inegociáveis do
+// CV Tailor completo: nada de inventar, missing é lista proibida.
+
+export const CV_PREVIEW_SAMPLE_SYSTEM_PROMPT = `Você é um recrutador técnico sênior e especialista em ATS, especializado em
+adaptar currículos de profissionais brasileiros para vagas remotas
+internacionais pagas em dólar.
+
+Você vai receber o CV atual do candidato, o perfil da vaga e os requisitos
+da vaga já classificados contra o CV (com evidência literal). Sua tarefa é
+gerar uma AMOSTRA da adaptação — não o CV inteiro:
+
+1. "summary": um resumo profissional de 2-3 frases posicionado para ESTA
+   vaga, usando APENAS fatos presentes no CV. No idioma da job description.
+2. "bullets": 2 a 3 bullets do CV reescritos. Escolha os trechos com maior
+   ganho: priorize os que podem tornar EVIDENTE um requisito classificado
+   como "weak" (presente no CV mas pouco visível). Para cada um:
+   - "source": o trecho LITERAL do CV original que você está reescrevendo
+     (copie do CV — será exibido como "antes").
+   - "rewritten": a versão reposicionada, no idioma da job description —
+     mesmos fatos, terminologia aproximada da vaga, resultado em evidência.
+   - "requirementTerm": o requisito da vaga (termo EXATO da lista) que este
+     bullet passa a evidenciar.
+3. "evidencedTerms": os termos classificados como "weak" que sua amostra
+   tornou evidentes (apenas os que os bullets/summary realmente destacam).
+
+REGRA FUNDAMENTAL — NÃO INVENTAR (regra de produto, inviolável):
+Você NUNCA pode adicionar experiência, empresa, cargo, competência,
+ferramenta, formação, resultado, número ou métrica que não esteja no CV
+original. Os requisitos "missing" (lista PROIBIDA no prompt) NÃO podem
+aparecer no texto gerado — nem no summary, nem em bullet, em nenhuma forma.
+Se o CV original não tem um número, a reescrita também não tem — nunca
+invente métrica.
+
+Sem buzzwords vazias ("passionate", "synergy", "rockstar").
+
+Responda SEMPRE chamando a ferramenta "submit_cv_preview_sample". Não
+escreva texto fora da chamada da ferramenta.`;
+
+export function buildCvPreviewSampleUserPrompt(
+  cvText: string,
+  job: CvJobProfile,
+  requirements: CvRequirement[],
+  violationTerms?: string[],
+): string {
+  const allowed = requirements
+    .filter((r) => r.status !== "missing")
+    .map((r) => `- ${r.term} [${r.status}] — evidência no CV: "${r.evidence}"`)
+    .join("\n");
+  const forbidden = requirements
+    .filter((r) => r.status === "missing")
+    .map((r) => `- ${r.term}`)
+    .join("\n");
+
+  const reinforcement = violationTerms?.length
+    ? `
+
+ATENÇÃO — TENTATIVA ANTERIOR REJEITADA: o texto gerado mencionou termos da
+lista PROIBIDA (${violationTerms.join(", ")}). Gere novamente SEM NENHUMA
+menção a esses termos, em nenhuma forma ou variação.`
+    : "";
+
+  return `Vaga-alvo:
+- Cargo: ${job.role}
+- Senioridade: ${job.seniority}
+- Área: ${job.area}
+- Contexto: ${job.context}
+
+Requisitos com evidência no CV (whitelist — só isso pode ser destacado):
+${allowed || "- (nenhum)"}
+
+Requisitos SEM evidência no CV (lista PROIBIDA — não podem aparecer):
+${forbidden || "- (nenhum)"}
+
+CV atual do candidato:
+"""
+${cvText}
+"""${reinforcement}
+
+Gere a amostra (summary + bullets) e chame "submit_cv_preview_sample".`;
+}
+
+export const CV_PREVIEW_SAMPLE_TOOL: Anthropic.Tool = {
+  name: "submit_cv_preview_sample",
+  description:
+    "Envia a amostra da adaptação: summary posicionado + 2-3 bullets reescritos, cada um amarrado a um requisito da vaga.",
+  input_schema: {
+    type: "object",
+    properties: {
+      summary: {
+        type: "string",
+        description: "Resumo profissional de 2-3 frases posicionado pra vaga, no idioma da JD.",
+      },
+      bullets: {
+        type: "array",
+        minItems: 2,
+        maxItems: 3,
+        items: {
+          type: "object",
+          properties: {
+            source: {
+              type: "string",
+              description: "Trecho literal do CV original que está sendo reescrito.",
+            },
+            rewritten: { type: "string", description: "Versão reposicionada pra vaga." },
+            requirementTerm: {
+              type: "string",
+              description: "Requisito da vaga (termo exato da lista) que o bullet evidencia.",
+            },
+          },
+          required: ["source", "rewritten", "requirementTerm"],
+        },
+      },
+      evidencedTerms: {
+        type: "array",
+        items: { type: "string" },
+        description: "Termos 'weak' que a amostra tornou evidentes.",
+      },
+    },
+    required: ["summary", "bullets", "evidencedTerms"],
+  },
+};

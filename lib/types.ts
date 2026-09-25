@@ -551,3 +551,41 @@ export interface MarketIntelReport {
   /** Bloco 6 — "O que mais chamou atenção" (Sonnet, a partir dos números acima). */
   insights: string;
 }
+
+// --- Preview público do CV Tailor (/preview/cv-tailor — funil de topo) ---
+//
+// Duas etapas, espelhando a economia do gate: o diagnóstico (etapa barata,
+// haiku + match em código) é visível pra todo mundo; a amostra da reescrita
+// (etapa cara, sonnet) só roda DEPOIS do e-mail. A amostra são o summary +
+// até 3 bullets — o CV completo + PDF ficam como motivo de criar conta.
+
+/** Resposta pública da etapa 1: diagnóstico visível (a isca do funil). */
+export interface CvPreviewDiagnosis {
+  job: CvJobProfile;
+  requirements: CvRequirement[];
+  /** Match do CV atual — MESMA fórmula auditável de lib/match.ts. */
+  match: CvMatchBreakdown;
+  /** Texto extraído do CV (devolvido pro client alimentar a etapa 2). */
+  cvText: string;
+}
+
+/** Um bullet da amostra: trecho real do CV → versão reposicionada. */
+export interface CvPreviewSampleBullet {
+  /** Trecho LITERAL do CV original que foi reescrito. */
+  source: string;
+  /** A versão reposicionada pra vaga (mesmos fatos, nova evidência). */
+  rewritten: string;
+  /** Requisito da vaga que este bullet passa a evidenciar. */
+  requirementTerm: string;
+}
+
+/** Resposta pública da etapa 2: a amostra revelada pós-gate. */
+export interface CvPreviewSample {
+  /** Summary de 2-3 frases posicionado pra ESTA vaga (idioma da JD). */
+  summary: string;
+  bullets: CvPreviewSampleBullet[];
+  /** Termos weak que a amostra evidenciou (base da projeção). */
+  evidencedTerms: string[];
+  /** Projeção pós-amostra: mesma fórmula, promovendo só os weak evidenciados. */
+  matchAfter: CvMatchBreakdown;
+}
