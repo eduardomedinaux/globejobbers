@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function SiteFooter() {
   return (
     <>
@@ -14,7 +16,15 @@ export function SiteFooter() {
             Seus arquivos são usados apenas para gerar sua análise e não são
             compartilhados.
           </p>
-          <p>© {new Date().getFullYear()} GlobeJobbers</p>
+          <p className="flex items-center gap-4">
+            <Link href="/privacidade" className="transition-opacity hover:opacity-100">
+              Privacidade
+            </Link>
+            <Link href="/termos" className="transition-opacity hover:opacity-100">
+              Termos
+            </Link>
+            <span>© {new Date().getFullYear()} GlobeJobbers</span>
+          </p>
         </div>
       </footer>
     </>
