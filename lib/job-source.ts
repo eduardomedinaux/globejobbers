@@ -29,8 +29,8 @@ const JSEARCH_ENDPOINT = `https://${JSEARCH_HOST}/search-v2`;
 // 04/set: 23 de 24 falharam, 1 passou). Coleta em ondas pequenas com pausa
 // entre elas + uma rodada de retry pras páginas que levarem 429. Custo:
 // coleta passa de ~3s pra ~15-25s — a barra de progresso da UI cobre.
-const FETCH_CONCURRENCY = 2;
-const FETCH_WAVE_DELAY_MS = 1000;
+export const FETCH_CONCURRENCY = 2;
+export const FETCH_WAVE_DELAY_MS = 1000;
 const RETRY_DELAY_MS = 2000;
 // Orçamento de tempo da coleta: a rota roda sob maxDuration=60 na Vercel
 // (visto em produção: coleta sem teto estourou os 60s e deu 504). Ao
@@ -42,7 +42,7 @@ const TIME_BUDGET_MS = 32_000;
 // inteira ao 504 (visto em produção em 04/set, mesmo com o orçamento).
 const FETCH_TIMEOUT_MS = 6_000;
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -52,7 +52,7 @@ function sleep(ms: number): Promise<void> {
  * continua útil (a JD é real), então filtramos só a IDENTIDADE, não a vaga —
  * e usamos a lista pra dedup mais agressivo (mesmo título em N boards).
  */
-const REPUBLISHER_NAMES = new Set(
+export const REPUBLISHER_NAMES = new Set(
   [
     "flexboard",
     "remote click jobs",
@@ -70,7 +70,7 @@ const REPUBLISHER_NAMES = new Set(
   ].map((s) => s.toLowerCase()),
 );
 
-function normalize(s: string): string {
+export function normalize(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
@@ -79,7 +79,7 @@ function normalize(s: string): string {
  * trazem \\u0000 e afins, que o Postgres rejeita dentro de JSON (visto em
  * dev: PGRST102 "Empty or invalid json" ao gravar o staging).
  */
-function sanitizeText(s: string): string {
+export function sanitizeText(s: string): string {
   return (
     s
       // eslint-disable-next-line no-control-regex
@@ -93,7 +93,7 @@ function sanitizeText(s: string): string {
 }
 
 /** Título sem sufixos de localização/observações: corta em " - ", " | ", "(". */
-function normalizeTitle(title: string): string {
+export function normalizeTitle(title: string): string {
   return normalize(title.replace(/\s*[-–|(].*$/, ""));
 }
 
@@ -114,28 +114,43 @@ function regionParams(region: MarketIntelRegion, query: string): { query: string
   }
 }
 
-interface JSearchJob {
+export interface JSearchJob {
+  job_id?: string;
   job_title?: string;
   employer_name?: string;
   job_publisher?: string;
   job_description?: string;
   job_is_remote?: boolean;
-  job_country?: string;
+  job_country?: string | null;
+  // Campos usados só pelo "Vagas do dia" (lib/jobs-daily.ts). O MI ignora.
+  job_location?: string | null;
+  job_apply_link?: string | null;
+  job_posted_at_datetime_utc?: string | null;
+  job_min_salary?: number | null;
+  job_max_salary?: number | null;
+  job_salary_currency?: string | null;
+  job_salary_period?: string | null;
 }
 
-async function fetchPage(
+/** Janela de publicação aceita pelo JSearch. O MI usa sempre "month". */
+export type JSearchDatePosted = "all" | "today" | "3days" | "week" | "month";
+
+export async function fetchPage(
   apiKey: string,
   query: string,
   country: string,
   page: number,
   remoteOnly: boolean,
+  // Default "month" preserva o comportamento do Market Intelligence; o
+  // "Vagas do dia" passa "today"/"3days".
+  datePosted: JSearchDatePosted = "month",
 ): Promise<JSearchJob[]> {
   const params = new URLSearchParams({
     query,
     page: String(page),
     num_pages: "1",
     country,
-    date_posted: "month",
+    date_posted: datePosted,
   });
   if (remoteOnly) params.set("work_from_home", "true");
 

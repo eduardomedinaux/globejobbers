@@ -307,3 +307,34 @@ grant select, insert, update on public.user_documents to service_role;
 -- MIGRAÇÃO (rodar uma vez em produção — onboarding assistant, set/2026):
 --   alter table public.user_documents add column if not exists extracted_role text;
 --   grant update on public.user_documents to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Vagas do dia (out/2026) — 5 vagas remotas por dia, escolhidas pelo cron
+-- /api/jobs-daily e renderizadas como story em /api/jobs-daily/story.
+-- Só metadados (cargo, empresa, salário, escopo, link original). NUNCA a
+-- descrição da vaga — ver lib/jobs-daily.ts.
+-- ---------------------------------------------------------------------------
+create table if not exists public.jobs_daily (
+  id uuid primary key default gen_random_uuid(),
+  run_date date not null,
+  position smallint not null,
+  job_id text not null,
+  title text not null,
+  company text not null,
+  salary_min numeric,
+  salary_max numeric,
+  salary_currency text,
+  salary_period text,
+  remote_scope text not null default 'worldwide',
+  apply_url text not null,
+  source text,
+  posted_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (run_date, position)
+);
+
+create index if not exists jobs_daily_run_date_idx on public.jobs_daily (run_date desc);
+
+alter table public.jobs_daily enable row level security;
+-- O cron regrava o dia (delete + insert), por isso o delete.
+grant select, insert, delete on public.jobs_daily to service_role;
