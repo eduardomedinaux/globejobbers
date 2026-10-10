@@ -42,6 +42,44 @@ const EXCLUDED_COUNTRIES = new Set([
   "jp", "kr", "au", "nz", "za", "ng", "ke", "eg", "ae", "sa", "il", "tr", "ru",
 ]);
 
+// Plataformas de gig/freela (decisão 10/out, 1º dry-run): o story vende
+// emprego internacional estruturado — bico por hora em marketplace não
+// sustenta a promessa da marca. Checamos nome do empregador E domínio do
+// link de aplicação.
+const GIG_NAMES = new Set([
+  "upwork",
+  "fiverr",
+  "freelancer",
+  "peopleperhour",
+  "guru",
+  "contra",
+  "workana",
+  "truelancer",
+  "toptal",
+]);
+const GIG_DOMAINS = [
+  "upwork.com",
+  "fiverr.com",
+  "freelancer.com",
+  "peopleperhour.com",
+  "guru.com",
+  "contra.com",
+  "workana.com",
+  "truelancer.com",
+  "toptal.com",
+];
+
+function isGigListing(company: string, applyUrl: string): boolean {
+  if (GIG_NAMES.has(normalize(company))) return true;
+  let host = "";
+  try {
+    host = new URL(applyUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return GIG_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 export interface DailyJob {
   jobId: string;
   title: string;
@@ -86,8 +124,12 @@ export function selectDailyJobs(raw: JSearchJob[], count = DAILY_JOB_COUNT): Dai
     if (!title || !company || !/^https?:\/\//.test(applyUrl)) continue;
     if (j.job_is_remote !== true) continue;
     // Board republicador como "empresa" não serve pra um story — queremos
-    // o nome real do empregador.
+    // o nome real do empregador. O padrão "... jobs" pega os boards que
+    // ainda não estão na lista (ex.: "remote quest jobs").
     if (REPUBLISHER_NAMES.has(normalize(company))) continue;
+    if (/\bjobs\b/.test(normalize(company))) continue;
+    // Gig/freela em marketplace fica fora da vitrine do dia.
+    if (isGigListing(company, applyUrl)) continue;
     const country = (j.job_country ?? "").toString().toLowerCase();
     if (country && EXCLUDED_COUNTRIES.has(country)) continue;
 

@@ -67,6 +67,9 @@ export const REPUBLISHER_NAMES = new Set(
     "remote rocketship",
     "talent.com",
     "jobgether",
+    // Visto no 1º dry-run das Vagas do dia (10/out): board aparecendo como
+    // "empresa" da vaga.
+    "remote quest jobs",
   ].map((s) => s.toLowerCase()),
 );
 
