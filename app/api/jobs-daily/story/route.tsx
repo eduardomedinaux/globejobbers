@@ -145,8 +145,11 @@ export async function GET(request: NextRequest) {
 
         <div style={{ display: "flex", flexDirection: "column", marginTop: 72, gap: 18 }}>
           <div style={{ fontSize: 26, color: TEAL, fontWeight: 700, letterSpacing: 4 }}>VAGAS REMOTAS · HOJE</div>
+          {/* Satori: `{expr} texto` são DOIS filhos — num div sem display:flex
+              ele quebra com "Expected <div> to have explicit display:flex".
+              Template literal = um filho só. */}
           <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1.08, letterSpacing: -1.5 }}>
-            {jobs.length} vagas em dólar pra você aplicar hoje
+            {`${jobs.length} vagas em dólar pra você aplicar hoje`}
           </div>
           <div style={{ fontSize: 28, color: MUTED }}>{formatDateLabel(runDate)}</div>
         </div>
