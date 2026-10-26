@@ -84,14 +84,16 @@ export default function PrivacidadePage() {
         <p>
           Usamos operadores que processam dados em nosso nome: Supabase (banco
           de dados e autenticação, servidores nos EUA), Vercel (hospedagem),
-          Anthropic (processamento de IA), PostHog (métricas de uso) e Google
-          (login). Pagamentos, quando aplicável, são processados por
+          Anthropic (processamento de IA), PostHog (métricas de uso), Google
+          (login) e Meta (medição de anúncios no Instagram e no Facebook). Pagamentos, quando aplicável, são processados por
           plataformas de pagamento próprias (ex.: Hotmart) — não armazenamos
           dados de cartão.
         </p>
         <p>
-          Não vendemos seus dados nem os compartilhamos com terceiros para
-          publicidade.
+          Não vendemos seus dados. Com a Meta compartilhamos só eventos de
+          navegação e conversão (ex.: visitou a página, criou a conta), pra
+          medir os nossos anúncios. Nunca compartilhamos o conteúdo do seu
+          perfil, currículo ou análises.
         </p>
       </section>
 
@@ -120,8 +122,11 @@ export default function PrivacidadePage() {
         <h2>7. Cookies</h2>
         <p>
           Usamos cookies essenciais para manter sua sessão de login e
-          ferramentas de métricas para entender o uso do produto. Não usamos
-          cookies de publicidade.
+          ferramentas de métricas para entender o uso do produto. Também
+          usamos o Pixel da Meta, que grava cookies para medir o resultado dos
+          nossos anúncios no Instagram e no Facebook. Você pode limitar esse
+          uso nas configurações de anúncios da sua conta Meta ou bloqueando
+          cookies de terceiros no navegador.
         </p>
       </section>
 

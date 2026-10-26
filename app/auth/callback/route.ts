@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
 
   const { user } = data;
   const admin = getSupabaseAdmin();
+  // Primeira conta → ?signup=1 no redirect final, que o Meta Pixel
+  // (components/analytics/meta-pixel.tsx) converte em CompleteRegistration.
+  let isNewUser = false;
   const { data: profile, error: upsertError } = await admin
     .from("profiles")
     .upsert(
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
     // mesmo padrão de tolerância a falha usado em /api/leads.
     console.error("PROFILE_UPSERT_FAILED", { userId: user.id, upsertError });
   } else if (profile) {
-    const isNewUser =
+    isNewUser =
       Math.abs(new Date(profile.created_at).getTime() - new Date(profile.updated_at).getTime()) <
       NEW_USER_THRESHOLD_MS;
     if (isNewUser) {
@@ -125,5 +128,9 @@ export async function GET(request: NextRequest) {
     console.error("PRO_GRANT_UNEXPECTED", { userId: user.id, grantError });
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  // Mesma concatenação de antes (origin + next): nunca resolve `next` como
+  // URL absoluta, então não abre redirect pra outro domínio.
+  const dest = new URL(`${origin}${next}`);
+  if (isNewUser) dest.searchParams.set("signup", "1");
+  return NextResponse.redirect(dest.toString());
 }

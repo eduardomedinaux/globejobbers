@@ -1,6 +1,7 @@
 "use client";
 
 import posthog from "posthog-js";
+import { metaTrack } from "@/lib/meta-pixel";
 
 // Stub de instrumentação para a métrica que importa nesta fase (ver
 // CLAUDE.md "Métrica que importa nesta fase"): aha rate = % de visitantes
@@ -102,6 +103,14 @@ export type AnalyticsEvent =
   | "preview_cv_sample_revealed"
   | "preview_cv_failed";
 
+// Eventos que viram "Lead" no Meta Pixel: e-mail deixado nos teasers
+// públicos. São o sinal de conversão dos anúncios antes do cadastro.
+const META_LEAD_EVENTS: ReadonlySet<AnalyticsEvent> = new Set<AnalyticsEvent>([
+  "email_submitted",
+  "preview_cv_sample_revealed",
+]);
+
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
   posthog.capture(event, props);
+  if (META_LEAD_EVENTS.has(event)) metaTrack("Lead");
 }

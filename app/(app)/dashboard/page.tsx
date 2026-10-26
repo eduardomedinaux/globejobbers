@@ -42,7 +42,8 @@ export default async function DashboardPage({
   // header desta requisição leria o plano antes do sync terminar).
   if (user && searchParams?.checkout === "success") {
     await syncStripeForUser(user.id, user.email ?? "");
-    redirect("/dashboard");
+    // ?subscribed=1 vira "Subscribe" no Meta Pixel (e some da URL em seguida).
+    redirect("/dashboard?subscribed=1");
   }
 
   // Layout já garante user !== null aqui — checado de novo só pro TS.

@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { PostHogProvider } from "./providers";
+import { Suspense } from "react";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -35,6 +37,10 @@ export default function RootLayout({
           {children}
         </PostHogProvider>
         <Analytics />
+        {/* useSearchParams dentro do MetaPixel exige Suspense no App Router */}
+        <Suspense fallback={null}>
+          <MetaPixel />
+        </Suspense>
       </body>
     </html>
   );
