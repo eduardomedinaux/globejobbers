@@ -338,3 +338,27 @@ create index if not exists jobs_daily_run_date_idx on public.jobs_daily (run_dat
 alter table public.jobs_daily enable row level security;
 -- O cron regrava o dia (delete + insert), por isso o delete.
 grant select, insert, delete on public.jobs_daily to service_role;
+
+-- ============================================================================
+-- Quiz público (/quiz) — leads do funil de topo
+-- ============================================================================
+--
+-- Gravado por app/api/quiz/lead/route.ts quando a pessoa pede o link pra
+-- continuar no computador. `answers` guarda as 6 respostas (QuizAnswers em
+-- lib/quiz.ts); `utm` a origem (anúncio, ManyChat, bio). Sem UNIQUE em email:
+-- cada envio é uma linha (mesmo padrão de `leads`).
+
+create table if not exists public.quiz_leads (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  area text not null,
+  answers jsonb not null,
+  utm jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists quiz_leads_email_idx on public.quiz_leads (email, created_at desc);
+create index if not exists quiz_leads_created_at_idx on public.quiz_leads (created_at desc);
+
+alter table public.quiz_leads enable row level security;
+grant insert, select on public.quiz_leads to service_role;

@@ -101,13 +101,21 @@ export type AnalyticsEvent =
   | "preview_cv_started"
   | "preview_cv_diagnosed"
   | "preview_cv_sample_revealed"
-  | "preview_cv_failed";
+  | "preview_cv_failed"
+  // Quiz público (/quiz — funil de topo do Instagram/anúncios)
+  | "quiz_viewed"
+  | "quiz_started"
+  | "quiz_answered"
+  | "quiz_result_viewed"
+  | "quiz_email_submitted"
+  | "quiz_continue_clicked";
 
 // Eventos que viram "Lead" no Meta Pixel: e-mail deixado nos teasers
 // públicos. São o sinal de conversão dos anúncios antes do cadastro.
 const META_LEAD_EVENTS: ReadonlySet<AnalyticsEvent> = new Set<AnalyticsEvent>([
   "email_submitted",
   "preview_cv_sample_revealed",
+  "quiz_email_submitted",
 ]);
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {

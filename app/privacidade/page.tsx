@@ -85,7 +85,8 @@ export default function PrivacidadePage() {
           Usamos operadores que processam dados em nosso nome: Supabase (banco
           de dados e autenticação, servidores nos EUA), Vercel (hospedagem),
           Anthropic (processamento de IA), PostHog (métricas de uso), Google
-          (login) e Meta (medição de anúncios no Instagram e no Facebook). Pagamentos, quando aplicável, são processados por
+          (login), Resend (envio de e-mails) e Meta (medição de anúncios no
+          Instagram e no Facebook). Pagamentos, quando aplicável, são processados por
           plataformas de pagamento próprias (ex.: Hotmart) — não armazenamos
           dados de cartão.
         </p>
