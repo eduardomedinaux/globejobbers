@@ -160,7 +160,7 @@ export default function WorkshopPage() {
       {/* Quem dá a aula */}
       <section className="mx-auto grid max-w-[880px] items-center gap-8 px-5 py-14 sm:grid-cols-[220px_1fr] sm:px-10">
         <div className="relative mx-auto aspect-square w-[200px] overflow-hidden rounded-full border-2 border-tinta shadow-dura sm:w-[220px]">
-          <Image src="/workshop/eduardo-retrato.jpg" alt="Eduardo Medina" fill sizes="220px" className="object-cover object-[50%_30%]" />
+          <Image src="/workshop/eduardo-retrato.jpg" alt="Eduardo Medina" fill sizes="220px" className="object-cover object-center" />
         </div>
         <div>
           <span className="font-spacemono text-[12.5px] uppercase tracking-wide text-tinta/60">Quem dá a aula</span>
