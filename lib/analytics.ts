@@ -108,7 +108,10 @@ export type AnalyticsEvent =
   | "quiz_answered"
   | "quiz_result_viewed"
   | "quiz_email_submitted"
-  | "quiz_continue_clicked";
+  | "quiz_continue_clicked"
+  // Landing do workshop (/workshop)
+  | "workshop_viewed"
+  | "workshop_checkout_clicked";
 
 // Eventos que viram "Lead" no Meta Pixel: e-mail deixado nos teasers
 // públicos. São o sinal de conversão dos anúncios antes do cadastro.

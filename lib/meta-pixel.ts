@@ -10,7 +10,8 @@ export const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
 // - Lead: e-mail deixado nos teasers públicos (lib/analytics.ts)
 // - CompleteRegistration: primeira conta criada (?signup=1 do callback)
 // - Subscribe: volta do Stripe Checkout com sucesso (?subscribed=1)
-export type MetaStandardEvent = "PageView" | "Lead" | "CompleteRegistration" | "Subscribe";
+// - InitiateCheckout: clique no botão de compra do workshop (/workshop)
+export type MetaStandardEvent = "PageView" | "Lead" | "CompleteRegistration" | "Subscribe" | "InitiateCheckout";
 
 type Fbq = (command: "track" | "init", event: string, params?: Record<string, unknown>) => void;
 
