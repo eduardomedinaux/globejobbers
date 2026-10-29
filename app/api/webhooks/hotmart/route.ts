@@ -13,6 +13,15 @@ const GRANT_DAYS_BY_PRODUCT: Record<string, number> = {
 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Produtos cujo bônus só começa numa data fixa (o workshop: o acesso abre
+// meia hora antes da aula, pra quem comprou cedo não perder os 7 dias antes
+// do evento). O grant fica na fila com starts_at e é resgatado a partir daí
+// (lib/pro-grants.ts). Compra feita depois dessa data começa na hora.
+// AO MARCAR NOVA TURMA: atualizar a data aqui.
+const GRANT_STARTS_AT_BY_PRODUCT: Record<string, string> = {
+  "8521774": "2026-11-07T08:30:00-03:00", // Workshop de 07/11, 9h às 12h
+};
+
 /**
  * Webhook da Hotmart (Webhook 2.0) — a ponte mentoria → GlobeJobbers Pro.
  *
@@ -104,18 +113,22 @@ export async function POST(request: NextRequest) {
     }
 
     const grantDays = GRANT_DAYS_BY_PRODUCT[productId] ?? GRANT_DAYS_DEFAULT;
+    const fixedStart = GRANT_STARTS_AT_BY_PRODUCT[productId];
+    const startsAt =
+      fixedStart && new Date(fixedStart).getTime() > Date.now() ? new Date(fixedStart).toISOString() : null;
     const { error } = await admin.from("pro_grants").insert({
       email,
       days: grantDays,
       source: "hotmart",
       external_ref: transaction,
+      starts_at: startsAt,
     });
     if (error) {
       console.error("HOTMART_GRANT_INSERT_FAILED", { email, transaction, error });
       // 500 → a Hotmart reentrega (retry automático).
       return NextResponse.json({ error: "db error" }, { status: 500 });
     }
-    console.log("HOTMART_GRANT_CREATED", { email, transaction, productId, days: grantDays });
+    console.log("HOTMART_GRANT_CREATED", { email, transaction, productId, days: grantDays, startsAt });
     return NextResponse.json({ received: true });
   }
 

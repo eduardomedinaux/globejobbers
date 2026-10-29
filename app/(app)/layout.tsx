@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { resolveEffectivePlan } from "@/lib/plan";
+import { claimPendingGrants } from "@/lib/pro-grants";
 import { DashboardNav } from "@/components/dashboard/nav";
 import { AppHeader } from "@/components/dashboard/app-header";
 
@@ -18,6 +19,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) {
     redirect("/login");
   }
+
+  // Resgata grants que ficaram disponíveis depois do login (ex.: bônus do
+  // workshop, que só começa no dia da aula). Antes de ler o plano, pra o
+  // header já mostrar Pro. Nunca lança.
+  await claimPendingGrants(user.id, user.email);
 
   const admin = getSupabaseAdmin();
   const { data: profile } = await admin

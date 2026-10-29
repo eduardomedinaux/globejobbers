@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { claimPendingGrants } from "@/lib/pro-grants";
 
 // Numa primeira conta, created_at e updated_at ficam a poucos ms de
 // distância (o upsert seta updated_at "agora" e created_at pega o default
@@ -10,7 +11,6 @@ import { captureServerEvent } from "@/lib/posthog-server";
 // desta janela.
 const NEW_USER_THRESHOLD_MS = 5000;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Troca o code do OAuth (Google) por uma sessão, garante o profile do
@@ -70,63 +70,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Resgate de concessões Pro pendentes pro e-mail (concedidas via SQL
-  // manual hoje; via webhook Hotmart no futuro — mesma fila). Falha aqui
-  // NUNCA bloqueia o login; a concessão fica pendente pro próximo.
-  try {
-    const email = (user.email ?? "").trim();
-    if (email) {
-      // .ilike sem curinga = igualdade case-insensitive.
-      const { data: grants } = await admin
-        .from("pro_grants")
-        .select("id, days")
-        .is("claimed_at", null)
-        // Grant revogado (reembolso Hotmart nos 7 dias) nunca é resgatado.
-        .is("revoked_at", null)
-        .ilike("email", email);
-
-      if (grants && grants.length > 0) {
-        const totalDays = grants.reduce((sum, g) => sum + (Number(g.days) || 30), 0);
-        // Estende a partir da expiração futura existente (grants somam),
-        // ou de agora quando não há Pro vigente.
-        const currentExpiry =
-          profile?.plan === "pro" && profile.plan_expires_at
-            ? new Date(profile.plan_expires_at as string)
-            : null;
-        const base =
-          currentExpiry && currentExpiry.getTime() > Date.now() ? currentExpiry : new Date();
-        const expiresAt = new Date(base.getTime() + totalDays * DAY_MS).toISOString();
-
-        const { error: planError } = await admin
-          .from("profiles")
-          .update({ plan: "pro", plan_expires_at: expiresAt, updated_at: new Date().toISOString() })
-          .eq("id", user.id);
-
-        if (planError) {
-          console.error("PRO_GRANT_APPLY_FAILED", { userId: user.id, planError });
-        } else {
-          const { error: claimError } = await admin
-            .from("pro_grants")
-            .update({ claimed_at: new Date().toISOString(), claimed_by: user.id })
-            .in(
-              "id",
-              grants.map((g) => g.id),
-            );
-          if (claimError) {
-            // Grant aplicado mas não marcado — pode reaplicar no próximo
-            // login (estendendo de novo). Logamos pra correção manual.
-            console.error("PRO_GRANT_CLAIM_FAILED", { userId: user.id, claimError });
-          }
-          await captureServerEvent(user.id, "pro_grant_claimed", {
-            grants: grants.length,
-            days: totalDays,
-          });
-        }
-      }
-    }
-  } catch (grantError) {
-    console.error("PRO_GRANT_UNEXPECTED", { userId: user.id, grantError });
-  }
+  // Resgate de concessões Pro pendentes (beta, mentoria, Hotmart). A lógica
+  // vive em lib/pro-grants.ts e também roda na área logada (grants com
+  // starts_at futuro, como o bônus do workshop). Nunca bloqueia o login.
+  await claimPendingGrants(user.id, user.email);
 
   // Mesma concatenação de antes (origin + next): nunca resolve `next` como
   // URL absoluta, então não abre redirect pra outro domínio.

@@ -195,6 +195,12 @@ create index if not exists pro_grants_external_ref_idx on public.pro_grants (ext
 --   create index if not exists pro_grants_external_ref_idx
 --     on public.pro_grants (external_ref);
 
+-- Bônus com início agendado (28/out/2026 — workshop): o grant só pode ser
+-- resgatado a partir de starts_at (null = na hora). Ver lib/pro-grants.ts.
+-- MIGRAÇÃO (rodar uma vez em produção):
+--   alter table public.pro_grants add column if not exists starts_at timestamptz;
+alter table public.pro_grants add column if not exists starts_at timestamptz;
+
 alter table public.pro_grants enable row level security;
 grant select, insert, update on public.pro_grants to service_role;
 
