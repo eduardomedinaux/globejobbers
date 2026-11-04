@@ -8,19 +8,39 @@ import { CheckoutButton } from "@/components/workshop/checkout-button";
 // anúncios e dos links orgânicos. O botão leva pro checkout da OFERTA ativa
 // (lib abaixo) — o link sem ?off= mostra o preço base, não o lote.
 //
-// Ao virar o lote: trocar WORKSHOP.offer/price/nextPrice/seats aqui.
+// Lotes por DATA (decisão 4/nov): cada lote tem um prazo; a página escolhe o
+// lote vigente na hora do request e revalida a cada minuto, então a virada
+// acontece sozinha. Os códigos são as ofertas do produto na Hotmart
+// (o nome interno das ofertas lá não bate com o número do lote aqui).
 
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", axes: ["SOFT", "WONK", "opsz"] });
 const grotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-grotesk" });
 const spaceMono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-space-mono" });
 
-const WORKSHOP = {
+export const revalidate = 60;
+
+type Lot = { lot: string; price: string; offer: string; until?: string; untilLabel?: string; nextPrice?: string };
+
+const LOTS: Lot[] = [
+  // Preço base da Hotmart (ibb1kr1r, R$ 45)
+  {
+    lot: "Lote 2",
+    price: "R$ 45",
+    offer: "ibb1kr1r",
+    until: "2026-11-06T02:59:59Z", // quinta 5/11, 23h59 (BRT)
+    untilLabel: "quinta (5/11), às 23h59",
+    nextPrice: "R$ 59",
+  },
+  // Oferta 2ra5l41h (R$ 59) — último lote, até o workshop
+  { lot: "Lote 3", price: "R$ 59", offer: "2ra5l41h" },
+];
+
+function currentLot(now = new Date()): Lot {
+  return LOTS.find((l) => !l.until || now < new Date(l.until)) ?? LOTS[LOTS.length - 1];
+}
+
+const WORKSHOP_BASE = {
   checkoutBase: "https://pay.hotmart.com/D107613704J",
-  offer: "warh50mt",
-  lot: "Lote 1",
-  price: "R$ 25",
-  seats: 20,
-  nextPrice: "R$ 45",
   dateLong: "Sábado, 7 de novembro",
   time: "9h às 12h (horário de Brasília)",
 };
@@ -57,7 +77,7 @@ const FAQ = [
 ] as const;
 
 export default function WorkshopPage() {
-  const s = WORKSHOP;
+  const s = { ...WORKSHOP_BASE, ...currentLot() };
   return (
     <main
       className={`gj-landing min-h-screen bg-papel font-grotesk text-tinta antialiased ${fraunces.variable} ${grotesk.variable} ${spaceMono.variable}`}
@@ -93,7 +113,9 @@ export default function WorkshopPage() {
                 Garantir minha vaga · {s.price}
               </CheckoutButton>
               <p className="mt-3 text-[13.5px] text-tinta/60">
-                {s.lot}: {s.price} só pras {s.seats} primeiras vagas. Depois sobe pra {s.nextPrice}.
+                {s.until
+                  ? `${s.lot}: ${s.price} até ${s.untilLabel}. Depois sobe pra ${s.nextPrice}.`
+                  : `${s.lot}: ${s.price}. Último lote antes do workshop.`}
               </p>
             </div>
           </div>
@@ -176,11 +198,13 @@ export default function WorkshopPage() {
       <section className="px-5 pb-14 sm:px-10">
         <div className="mx-auto max-w-[560px] rounded-[26px] border-2 border-tinta bg-papel-card p-8 text-center shadow-dura">
           <span className="font-spacemono text-[12.5px] font-bold uppercase tracking-wide text-laranja">
-            {s.lot} · {s.seats} vagas
+            {s.lot}
           </span>
           <p className="mt-2 font-display text-[64px] font-black leading-none tracking-[-0.03em]">{s.price}</p>
           <p className="mt-3 text-[15px] text-tinta/70">
-            Depois das {s.seats} primeiras vagas, o valor sobe pra {s.nextPrice}.
+            {s.until
+              ? `Até ${s.untilLabel}. Depois sobe pra ${s.nextPrice}.`
+              : "Último lote antes do workshop de sábado."}
           </p>
           <ul className="mx-auto mt-6 flex max-w-[360px] flex-col gap-2 text-left text-[15.5px]">
             <li>✓ 3 horas ao vivo, {s.dateLong.toLowerCase()}</li>
