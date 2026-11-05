@@ -65,6 +65,17 @@ const EXCLUDED_COUNTRIES = new Set([
   "jp", "kr", "au", "nz", "za", "ng", "ke", "eg", "ae", "sa", "il", "tr", "ru",
 ]);
 
+// Restrição geográfica explícita no título (visto em produção 05/nov:
+// "Remote (DC, MD, VA - Locals only)" entrou como worldwide). Público é
+// BR/LATAM — vaga que se declara só pra residentes/cidadãos dos EUA não
+// entra. Lista conservadora: só frases inequívocas, word-boundary.
+const GEO_RESTRICTED_TITLE =
+  /\b(locals? only|local candidates? only|us (?:citizens?|residents?) only|usa only|u\.s\.(?:a\.)? only|citizenship required|green card (?:holders? )?(?:only|required)|must (?:reside|live|be located) in)\b/i;
+
+export function isGeoRestrictedTitle(title: string): boolean {
+  return GEO_RESTRICTED_TITLE.test(title);
+}
+
 export function deriveScope(j: JSearchJob): string {
   const loc = normalize((j.job_location ?? "").toString());
   const title = normalize((j.job_title ?? "").toString());
@@ -131,6 +142,8 @@ export function toStoreJob(j: JSearchJob, roleQuery: string, region: string): St
   if (REPUBLISHER_NAMES.has(normalize(company))) return null;
   if (/\bjobs\b/.test(normalize(company))) return null;
   if (isGigListing(company, applyUrl)) return null;
+  // "Remote, mas só pra quem mora lá" não serve pro nosso público.
+  if (isGeoRestrictedTitle(title)) return null;
   const country = (j.job_country ?? "").toString().toLowerCase();
   if (country && EXCLUDED_COUNTRIES.has(country)) return null;
 
