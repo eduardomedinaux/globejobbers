@@ -2,15 +2,14 @@ import {
   fetchPage,
   normalize,
   normalizeTitle,
-  sanitizeText,
   sleep,
   FETCH_CONCURRENCY,
   FETCH_WAVE_DELAY_MS,
-  REPUBLISHER_NAMES,
   type JSearchDatePosted,
   type JSearchJob,
 } from "@/lib/job-source";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { buildStoreJobs, toStoreJob, type StoreJob } from "@/lib/jobs-store";
 
 // "Vagas do dia": 5 vagas remotas recentes, escolhidas uma vez por dia
 // (cron da Vercel → /api/jobs-daily) pra virar story no Instagram
@@ -36,49 +35,9 @@ export const DAILY_ROLE_QUERIES = [
 export const DAILY_MAX_REQUESTS = 10;
 export const DAILY_JOB_COUNT = 5;
 
-/** Países que não fazem sentido pro público (fuso/visto). Vaga sem país = ok. */
-const EXCLUDED_COUNTRIES = new Set([
-  "in", "pk", "bd", "lk", "ph", "id", "my", "sg", "th", "vn", "cn", "hk", "tw",
-  "jp", "kr", "au", "nz", "za", "ng", "ke", "eg", "ae", "sa", "il", "tr", "ru",
-]);
-
-// Plataformas de gig/freela (decisão 10/out, 1º dry-run): o story vende
-// emprego internacional estruturado — bico por hora em marketplace não
-// sustenta a promessa da marca. Checamos nome do empregador E domínio do
-// link de aplicação.
-const GIG_NAMES = new Set([
-  "upwork",
-  "fiverr",
-  "freelancer",
-  "peopleperhour",
-  "guru",
-  "contra",
-  "workana",
-  "truelancer",
-  "toptal",
-]);
-const GIG_DOMAINS = [
-  "upwork.com",
-  "fiverr.com",
-  "freelancer.com",
-  "peopleperhour.com",
-  "guru.com",
-  "contra.com",
-  "workana.com",
-  "truelancer.com",
-  "toptal.com",
-];
-
-function isGigListing(company: string, applyUrl: string): boolean {
-  if (GIG_NAMES.has(normalize(company))) return true;
-  let host = "";
-  try {
-    host = new URL(applyUrl).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  return GIG_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
-}
+// Filtros de qualidade (gig, republicador, países, escopo) agora vivem em
+// lib/jobs-store.ts — fonte única da régua, compartilhada entre o estoque
+// e esta vitrine (decisão 05/nov).
 
 export interface DailyJob {
   jobId: string;
@@ -100,17 +59,28 @@ export interface DailyJobsRow extends DailyJob {
   position: number;
 }
 
-function deriveScope(j: JSearchJob): string {
-  const loc = normalize((j.job_location ?? "").toString());
-  const title = normalize((j.job_title ?? "").toString());
-  if (/latam|latin america|américa latina/.test(`${loc} ${title}`)) return "latam";
-  if (!j.job_country || loc === "anywhere" || /worldwide|global/.test(loc)) return "worldwide";
-  return j.job_country.toString().toUpperCase().slice(0, 2);
+/** StoreJob → DailyJob (o story não carrega descrição/cargo da coleta). */
+function toDailyJob(s: StoreJob): DailyJob {
+  return {
+    jobId: s.jobId,
+    title: s.title,
+    company: s.company,
+    salaryMin: s.salaryMin,
+    salaryMax: s.salaryMax,
+    salaryCurrency: s.salaryCurrency,
+    salaryPeriod: s.salaryPeriod,
+    remoteScope: s.remoteScope,
+    applyUrl: s.applyUrl,
+    source: s.source,
+    postedAt: s.postedAt,
+  };
 }
 
 /**
  * Seleção pura (sem rede/banco) — testável com os JSONs do spike-output.
- * Filtra, dedupa e ranqueia: salário declarado primeiro, depois mais recente.
+ * A validação/normalização de cada vaga delega pra régua única do estoque
+ * (toStoreJob); aqui fica só o que é da vitrine: dedupe, ranking (salário
+ * declarado primeiro, depois mais recente) e variedade por empresa.
  */
 export function selectDailyJobs(raw: JSearchJob[], count = DAILY_JOB_COUNT): DailyJob[] {
   const seenIds = new Set<string>();
@@ -118,40 +88,13 @@ export function selectDailyJobs(raw: JSearchJob[], count = DAILY_JOB_COUNT): Dai
   const candidates: DailyJob[] = [];
 
   for (const j of raw) {
-    const title = sanitizeText((j.job_title ?? "").toString()).trim().slice(0, 120);
-    const company = sanitizeText((j.employer_name ?? "").toString()).trim().slice(0, 80);
-    const applyUrl = (j.job_apply_link ?? "").toString().trim();
-    if (!title || !company || !/^https?:\/\//.test(applyUrl)) continue;
-    if (j.job_is_remote !== true) continue;
-    // Board republicador como "empresa" não serve pra um story — queremos
-    // o nome real do empregador. O padrão "... jobs" pega os boards que
-    // ainda não estão na lista (ex.: "remote quest jobs").
-    if (REPUBLISHER_NAMES.has(normalize(company))) continue;
-    if (/\bjobs\b/.test(normalize(company))) continue;
-    // Gig/freela em marketplace fica fora da vitrine do dia.
-    if (isGigListing(company, applyUrl)) continue;
-    const country = (j.job_country ?? "").toString().toLowerCase();
-    if (country && EXCLUDED_COUNTRIES.has(country)) continue;
-
-    const jobId = (j.job_id ?? "").toString().trim() || `${normalize(company)}|${normalizeTitle(title)}`;
-    const key = `${normalize(company)}|${normalizeTitle(title)}`;
-    if (seenIds.has(jobId) || seenKeys.has(key)) continue;
-    seenIds.add(jobId);
+    const store = toStoreJob(j, "", "us");
+    if (!store) continue;
+    const key = `${normalize(store.company)}|${normalizeTitle(store.title)}`;
+    if (seenIds.has(store.jobId) || seenKeys.has(key)) continue;
+    seenIds.add(store.jobId);
     seenKeys.add(key);
-
-    candidates.push({
-      jobId: jobId.slice(0, 200),
-      title,
-      company,
-      salaryMin: typeof j.job_min_salary === "number" ? j.job_min_salary : null,
-      salaryMax: typeof j.job_max_salary === "number" ? j.job_max_salary : null,
-      salaryCurrency: j.job_salary_currency ? j.job_salary_currency.toString().toUpperCase().slice(0, 3) : null,
-      salaryPeriod: j.job_salary_period ? j.job_salary_period.toString().toUpperCase().slice(0, 10) : null,
-      remoteScope: deriveScope(j),
-      applyUrl: applyUrl.slice(0, 500),
-      source: sanitizeText((j.job_publisher ?? "").toString()).slice(0, 80),
-      postedAt: j.job_posted_at_datetime_utc ? j.job_posted_at_datetime_utc.toString() : null,
-    });
+    candidates.push(toDailyJob(store));
   }
 
   candidates.sort((a, b) => {
@@ -189,7 +132,12 @@ export interface DailyFetchSummary {
  * válidas, segunda passada com "3days" nos primeiros cargos, respeitando o
  * teto de requisições. Mesmo padrão de ondas/pausa do MI.
  */
-export async function fetchDailyJobs(): Promise<{ jobs: DailyJob[]; summary: DailyFetchSummary }> {
+export async function fetchDailyJobs(): Promise<{
+  jobs: DailyJob[];
+  /** TODAS as vagas limpas da coleta, tagueadas por cargo — vão pro estoque. */
+  storeJobs: StoreJob[];
+  summary: DailyFetchSummary;
+}> {
   const apiKey = process.env.JSEARCH_KEY;
   if (!apiKey) throw new Error("JSEARCH_KEY não configurada no ambiente.");
 
@@ -199,6 +147,9 @@ export async function fetchDailyJobs(): Promise<{ jobs: DailyJob[]; summary: Dai
   let rateLimited = false;
   const windows: JSearchDatePosted[] = [];
   const raw: JSearchJob[] = [];
+  // Mesmo lote, tagueado por cargo da busca — alimenta o estoque (a
+  // role_query é o eixo da aba "Vagas pro seu alvo" e do MI).
+  const tagged: { query: string; jobs: JSearchJob[] }[] = [];
 
   const runWindow = async (queries: string[], datePosted: JSearchDatePosted) => {
     windows.push(datePosted);
@@ -208,16 +159,19 @@ export async function fetchDailyJobs(): Promise<{ jobs: DailyJob[]; summary: Dai
         wave.map(async (q) => {
           requestsUsed++;
           try {
-            return await fetchPage(apiKey, q, "us", 1, true, datePosted);
+            return { query: q, jobs: await fetchPage(apiKey, q, "us", 1, true, datePosted) };
           } catch (error) {
             if (String(error).includes("429")) rateLimited = true;
             failedRequests++;
             console.error("JOBS_DAILY_FETCH_PAGE_FAILED", { query: q, datePosted, error: String(error) });
-            return [] as JSearchJob[];
+            return { query: q, jobs: [] as JSearchJob[] };
           }
         }),
       );
-      raw.push(...settled.flat());
+      for (const batch of settled) {
+        raw.push(...batch.jobs);
+        tagged.push(batch);
+      }
       if (i + FETCH_CONCURRENCY < queries.length) await sleep(FETCH_WAVE_DELAY_MS);
     }
   };
@@ -232,6 +186,7 @@ export async function fetchDailyJobs(): Promise<{ jobs: DailyJob[]; summary: Dai
     jobs = selectDailyJobs(raw);
   }
 
+  const storeJobs = buildStoreJobs(tagged);
   const summary: DailyFetchSummary = {
     requestsUsed,
     failedRequests,
@@ -240,8 +195,8 @@ export async function fetchDailyJobs(): Promise<{ jobs: DailyJob[]; summary: Dai
     windows,
     elapsedMs: Date.now() - startedAt,
   };
-  console.log("JOBS_DAILY_SUMMARY", { ...summary, selected: jobs.length });
-  return { jobs, summary };
+  console.log("JOBS_DAILY_SUMMARY", { ...summary, selected: jobs.length, store: storeJobs.length });
+  return { jobs, storeJobs, summary };
 }
 
 /** Data de hoje em São Paulo (YYYY-MM-DD) — o cron roda em UTC. */

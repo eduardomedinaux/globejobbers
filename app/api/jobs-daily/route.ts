@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchDailyJobs, saveDailyJobs, todayInSaoPaulo } from "@/lib/jobs-daily";
+import { purgeOldStoreJobs, upsertStoreJobs } from "@/lib/jobs-store";
 
 // "Vagas do dia" — chamada 1x/dia pelo cron da Vercel (vercel.json). A
 // Vercel manda `Authorization: Bearer ${CRON_SECRET}` sozinha quando a env
@@ -24,12 +25,22 @@ export async function GET(request: NextRequest) {
   const runDate = todayInSaoPaulo();
 
   try {
-    const { jobs, summary } = await fetchDailyJobs();
-    if (!dry) await saveDailyJobs(runDate, jobs);
+    const { jobs, storeJobs, summary } = await fetchDailyJobs();
+    let stored = 0;
+    if (!dry) {
+      await saveDailyJobs(runDate, jobs);
+      // Estoque central (decisão 05/nov): TODAS as vagas limpas da coleta
+      // alimentam a aba "Vagas pro seu alvo" e o MI. Falha aqui não
+      // derruba o story (upsertStoreJobs loga e devolve 0).
+      stored = await upsertStoreJobs(storeJobs);
+      await purgeOldStoreJobs();
+    }
     return NextResponse.json({
       runDate,
       saved: !dry,
       count: jobs.length,
+      stored,
+      storeCandidates: storeJobs.length,
       jobs,
       summary,
     });

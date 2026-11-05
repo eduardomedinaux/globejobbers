@@ -368,3 +368,44 @@ create index if not exists quiz_leads_created_at_idx on public.quiz_leads (creat
 
 alter table public.quiz_leads enable row level security;
 grant insert, select on public.quiz_leads to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Estoque central de vagas (nov/2026) — decisão 05/nov: UMA coleta, DOIS
+-- consumidores. O cron /api/jobs-daily grava aqui todas as vagas limpas;
+-- a aba "Vagas pro seu alvo" e o Market Intelligence leem daqui. O story
+-- do Instagram (jobs_daily) é uma view das 5 melhores do dia.
+-- `description` fica só pra MI/match (texto público) com expurgo de 30
+-- dias no cron. `ats_slug` = semente do diretório de empresas (migração
+-- futura JSearch → ATS direto). Ver lib/jobs-store.ts.
+-- ---------------------------------------------------------------------------
+create table if not exists public.jobs (
+  id uuid primary key default gen_random_uuid(),
+  job_id text not null unique,
+  role_query text not null,
+  region text not null default 'us',
+  title text not null,
+  company text not null,
+  description text,
+  salary_min numeric,
+  salary_max numeric,
+  salary_currency text,
+  salary_period text,
+  remote_scope text not null default 'worldwide',
+  apply_url text not null,
+  source text,
+  ats_slug text,
+  posted_at timestamptz,
+  collected_at timestamptz not null default now()
+);
+
+create index if not exists jobs_role_collected_idx
+  on public.jobs (role_query, collected_at desc);
+create index if not exists jobs_posted_idx on public.jobs (posted_at desc);
+create index if not exists jobs_ats_slug_idx
+  on public.jobs (ats_slug) where ats_slug is not null;
+
+alter table public.jobs enable row level security;
+-- Sem policies de propósito: só o service_role (cron e rotas de servidor)
+-- acessa; nenhum cliente toca direto. Upsert exige select+insert+update;
+-- o expurgo exige delete.
+grant select, insert, update, delete on public.jobs to service_role;
