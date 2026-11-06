@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
 
@@ -71,6 +71,15 @@ export function OnboardingAssistant({ hasPdf, extractedRole, hasMarketIntel }: O
 
   // --- Passo 2: cargo (editável) ---
   const [role, setRole] = useState(extractedRole ?? "");
+
+  // O cargo extraído chega DEPOIS do primeiro render (upload do PDF →
+  // router.refresh), então o estado inicial nasceu vazio e ficava vazio
+  // (bug visto no teste do workshop, 05/nov). Quando ele chegar e o campo
+  // estiver vazio, preenche — sem atropelar o que a pessoa já digitou.
+  useEffect(() => {
+    if (extractedRole && role.trim() === "") setRole(extractedRole);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extractedRole]);
 
   // --- Passo 3: vagas do corpus ---
   const [jobs, setJobs] = useState<JobOption[] | null>(null);
@@ -195,12 +204,24 @@ export function OnboardingAssistant({ hasPdf, extractedRole, hasMarketIntel }: O
                 o nome em inglês — é como as vagas são anunciadas.
               </p>
             )}
-            <input
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="Ex.: Product Designer"
-              className="rounded-lg border border-[#E2E2DC] px-3 py-2 text-[14px] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
-            />
+            <div className="relative">
+              <input
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="Ex.: Product Designer"
+                className="w-full rounded-lg border border-[#E2E2DC] px-3 py-2 pr-9 text-[14px] text-[#1B1B1E] outline-none focus:border-[#0F4D4A]"
+              />
+              {role.length > 0 && (
+                <button
+                  type="button"
+                  aria-label="Limpar cargo"
+                  onClick={() => setRole("")}
+                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[#A0A09B] transition-colors hover:bg-[#F4F4F0] hover:text-[#3F3F43]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <Button
               onClick={() => {
                 track("onboarding_market_intel_clicked");

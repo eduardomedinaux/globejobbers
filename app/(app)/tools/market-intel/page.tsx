@@ -286,7 +286,10 @@ export default function MarketIntelPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Onde você quer trabalhar</Label>
+            {/* "Onde você quer trabalhar" era ambíguo (feedback 05/nov):
+                parecia perguntar onde a pessoa vai MORAR. É o mercado do
+                empregador — ela continua no Brasil. O hint muda por opção. */}
+            <Label>De onde vêm as vagas</Label>
             <div className="flex flex-wrap gap-2">
               {MARKET_INTEL_REGION_OPTIONS.map((option) => (
                 <button
@@ -303,6 +306,16 @@ export default function MarketIntelPage() {
                 </button>
               ))}
             </div>
+            <p className="text-[12.5px] leading-[1.5] text-[#A0A09B]">
+              {region === "us" &&
+                "Empresas dos EUA contratando remoto — você continua morando onde está, ganhando em dólar."}
+              {region === "europe" &&
+                "Empresas europeias contratando remoto — você continua morando onde está."}
+              {region === "latam" &&
+                "Vagas abertas especificamente pra quem mora na América Latina (muitas de empresas americanas) — costumam ter menos concorrência global."}
+              {region === "br" &&
+                "Mercado doméstico brasileiro — útil como base de comparação."}
+            </p>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
